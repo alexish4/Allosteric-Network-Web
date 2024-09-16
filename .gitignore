@@ -1,0 +1,4 @@
+client/eslint.config.js
+clinet/node_modules
+package.json
+package-lock.json
