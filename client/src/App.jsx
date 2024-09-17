@@ -18,6 +18,14 @@ function App() {
   const [startingIndexValue, setStartingIndexValue] = useState('0');
   //const [file, setFile] = useState(null);
 
+  let resistor_1 = null;
+  let resistor_2 = null;
+
+  let source_id_array = [];
+  let sink_id_array = [];
+
+  let large_bet = 0;
+
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
   };
@@ -100,6 +108,8 @@ function App() {
       // D3.js code for drawing correlation matrix goes here
     }
   }, [tab]);
+
+  
 
   return (
     <div className="App">
