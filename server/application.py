@@ -19,11 +19,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 from collections import Counter
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import logging
 #import EnergyCode
 
 app=Flask(__name__)
 #application=app
-CORS(app, origins='*')
+CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 adj_matrix = []
 source_array = []
@@ -60,130 +61,136 @@ def process_dat_file(file):
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    global adj_matrix
-    global source_array
-    global sink_array
+    logging.debug('Received request to /upload')
 
-    file = request.files['file']
-    source_array = list(map(int, request.form['source'].split(',')))
-    sink_array = list(map(int, request.form['sink'].split(',')))
+    try:
+        global adj_matrix
+        global source_array
+        global sink_array
 
-    all = False #calculate average or all
-    
-    k = 51 #by default k is 10
+        file = request.files['file']
+        source_array = list(map(int, request.form['source'].split(',')))
+        sink_array = list(map(int, request.form['sink'].split(',')))
 
-    largest_betweenness = 0
+        all = False #calculate average or all
+        
+        k = 51 #by default k is 10
 
-    if request.form['k'] != "": #if k has input
-        k = int(request.form['k'])
-    if request.form['average'] == "No":
-        all = True
-    
-    if file.filename.endswith('.csv'):
-        data = np.loadtxt(file, delimiter=',')
-        filtered_data = data[data[:, 2] != 0]
-        rows, cols, correlations = filtered_data[:, 0].astype(int), filtered_data[:, 1].astype(int), filtered_data[:, 2]
-    elif file.filename.endswith('.dat'):
-        rows, cols, correlations = process_dat_file(file)
-    else:
-        return jsonify({'error': 'Unsupported file format'}), 400
+        largest_betweenness = 0
 
-    adj_matrix = coo_matrix((correlations, (rows, cols)))
+        if request.form['k'] != "": #if k has input
+            k = int(request.form['k'])
+        if request.form['average'] == "No":
+            all = True
+        
+        if file.filename.endswith('.csv'):
+            data = np.loadtxt(file, delimiter=',')
+            filtered_data = data[data[:, 2] != 0]
+            rows, cols, correlations = filtered_data[:, 0].astype(int), filtered_data[:, 1].astype(int), filtered_data[:, 2]
+        elif file.filename.endswith('.dat'):
+            rows, cols, correlations = process_dat_file(file)
+        else:
+            return jsonify({'error': 'Unsupported file format'}), 400
 
-     # Create graph
-    G = nx.from_scipy_sparse_array(adj_matrix)
+        adj_matrix = coo_matrix((correlations, (rows, cols)))
 
-    # label nodes to match their index in the adjacency matrix
-    mapping = {i: i for i in range(adj_matrix.shape[0])}
-    G = nx.relabel_nodes(G, mapping)
+        # Create graph
+        G = nx.from_scipy_sparse_array(adj_matrix)
 
-    tempAdjDense = adj_matrix.todense()
-    
-    # Convert adjacency matrix to Laplacian matrix
-    tempLapDense = -copy.deepcopy(tempAdjDense)
-    for ii, irow in enumerate(tempLapDense):
-        tempLapDense[ii, ii] = -np.sum(irow)
-    
-    # Compute pseudoinverse of Laplacian matrix
-    tempLinv = np.linalg.pinv(tempLapDense)
+        # label nodes to match their index in the adjacency matrix
+        mapping = {i: i for i in range(adj_matrix.shape[0])}
+        G = nx.relabel_nodes(G, mapping)
 
-    #variable to check if input is out of bounds
-    incorrect_input = False
+        tempAdjDense = adj_matrix.todense()
+        
+        # Convert adjacency matrix to Laplacian matrix
+        tempLapDense = -copy.deepcopy(tempAdjDense)
+        for ii, irow in enumerate(tempLapDense):
+            tempLapDense[ii, ii] = -np.sum(irow)
+        
+        # Compute pseudoinverse of Laplacian matrix
+        tempLinv = np.linalg.pinv(tempLapDense)
 
-    #creating multiple graphs so you aren't just using average betweenness
-    array_of_graphs = []
-    if all:
-        for so in source_array:
-            for si in source_array:
-                array_of_graphs.append(G.copy())
-    print(len(array_of_graphs))
+        #variable to check if input is out of bounds
+        incorrect_input = False
 
-    #need the average graph because this is the graph we are drawing
-    for u, v, data in G.edges(data=True):
-        # Calculate based on the indices of the source (u) and target (v)
-        betw = get_betw_value(u, v, tempLinv, tempAdjDense)
-        if betw is None:
-            incorrect_input = True
-            response_data = {
-                'incorrect_input': incorrect_input
-            }
-            return jsonify(response_data)
-        edge_length = -np.log(betw) #edge length is equal to -ln(|betw|) 
-        edge_length2 = -np.log(data['weight'])
+        #creating multiple graphs so you aren't just using average betweenness
+        array_of_graphs = []
+        if all:
+            for so in source_array:
+                for si in source_array:
+                    array_of_graphs.append(G.copy())
+        print(len(array_of_graphs))
 
-        data['betw'] = betw 
-        data['edge_length'] = edge_length
-        data['edge_length2'] = edge_length2
+        #need the average graph because this is the graph we are drawing
+        for u, v, data in G.edges(data=True):
+            # Calculate based on the indices of the source (u) and target (v)
+            betw = get_betw_value(u, v, tempLinv, tempAdjDense)
+            if betw is None:
+                incorrect_input = True
+                response_data = {
+                    'incorrect_input': incorrect_input
+                }
+                return jsonify(response_data)
+            edge_length = -np.log(betw) #edge length is equal to -ln(|betw|) 
+            edge_length2 = -np.log(data['weight'])
 
-        #also want largest betweenness value
-        if largest_betweenness < betw:
-            largest_betweenness = betw
+            data['betw'] = betw 
+            data['edge_length'] = edge_length
+            data['edge_length2'] = edge_length2
 
-    if not all:
-        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, tempLinv, tempAdjDense)
+            #also want largest betweenness value
+            if largest_betweenness < betw:
+                largest_betweenness = betw
 
-    else:
-        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense)
+        if not all:
+            top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, tempLinv, tempAdjDense)
 
-    #save histograms to different page
-    img_data, img_data2 = histograms(top_paths_lengths, top_paths2_lengths)
+        else:
+            top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense)
 
-    frequencyGraph(most_important_nodes, most_important_nodes2)
+        #save histograms to different page
+        img_data, img_data2 = histograms(top_paths_lengths, top_paths2_lengths)
 
-    # Create the top_paths_data using path_lengths_edge_weights and top_paths_2
-    top_paths_data = [
-        {'edge_length': top_paths_lengths[i], 'nodes': top_paths[i]}
-        for i in range(len(top_paths))  
-    ]
-    top_paths_data2 = [
-        {'edge_length': top_paths2_lengths[i], 'nodes': top_paths2[i]}
-        for i in range(len(top_paths2))  
-    ]
+        frequencyGraph(most_important_nodes, most_important_nodes2)
 
-    ranked_nodes_data = [
-        {'node': node, 'frequency': freq}
-        for node, freq in most_important_nodes
-    ]
+        # Create the top_paths_data using path_lengths_edge_weights and top_paths_2
+        top_paths_data = [
+            {'edge_length': top_paths_lengths[i], 'nodes': top_paths[i]}
+            for i in range(len(top_paths))  
+        ]
+        top_paths_data2 = [
+            {'edge_length': top_paths2_lengths[i], 'nodes': top_paths2[i]}
+            for i in range(len(top_paths2))  
+        ]
 
-    ranked_nodes_data2 = [
-        {'node': node, 'frequency': freq}
-        for node, freq in most_important_nodes2
-    ]
+        ranked_nodes_data = [
+            {'node': node, 'frequency': freq}
+            for node, freq in most_important_nodes
+        ]
+
+        ranked_nodes_data2 = [
+            {'node': node, 'frequency': freq}
+            for node, freq in most_important_nodes2
+        ]
 
 
-    response_data = {
-        'graph_data': nx.node_link_data(G),
-        'top_paths': top_paths_data,
-        'top_paths2': top_paths_data2,
-        'histogram1': img_data,
-        'histogram2': img_data2,
-        'ranked_nodes_data': ranked_nodes_data,
-        'ranked_nodes_data2': ranked_nodes_data2,
-        'incorrect_input': incorrect_input,
-        'largest_betweenness': largest_betweenness
-    }
-    
-    return jsonify(response_data)
+        response_data = {
+            'graph_data': nx.node_link_data(G),
+            'top_paths': top_paths_data,
+            'top_paths2': top_paths_data2,
+            'histogram1': img_data,
+            'histogram2': img_data2,
+            'ranked_nodes_data': ranked_nodes_data,
+            'ranked_nodes_data2': ranked_nodes_data2,
+            'incorrect_input': incorrect_input,
+            'largest_betweenness': largest_betweenness
+        }
+        
+        return jsonify(response_data)
+    except Exception as e:
+        logging.error(f'Error processing request: {e}')
+        return jsonify({'error': 'Internal server error'}), 500
 
 def get_betw_value(u, v, tempLinv, tempAdjDense):
     global source_array

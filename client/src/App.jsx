@@ -6,7 +6,7 @@ import axios from 'axios';
 
 function App() {
   const [count, setCount] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [file, setSelectedFile] = useState(null);
   const [tab, setTab] = useState('TopPaths');
 
   //variables for handleSubmit
@@ -16,7 +16,7 @@ function App() {
   const [kResid, setKResid] = useState('');
   const [average, setAverage] = useState('');
   const [startingIndexValue, setStartingIndexValue] = useState('0');
-  const [file, setFile] = useState(null);
+  //const [file, setFile] = useState(null);
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
@@ -25,6 +25,8 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); // Show loading spinner
+
+    console.log("Test");
 
     // Process source and sink inputs
     let sourceIdArray = sourceResid.split(',')
@@ -43,6 +45,11 @@ function App() {
       sinkIdArray = sinkIdArray.map(node => parseInt(node, 10));     // Convert to integer
     }
 
+    console.log(sourceIdArray);
+    console.log(sinkIdArray);
+
+    console.log(file);
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('source', sourceIdArray);
@@ -51,13 +58,15 @@ function App() {
     formData.append('average', average);
 
     try {
-      const response = await axios.post('http://your-server-url/upload', formData, {
+      const response = await axios.post('http://127.0.0.1:5000/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
       const data = response.data;
+      console.log("Test 2");
+      console.log(data.largest_betweenness);
 
       if (data.incorrect_input) {
         alert("Input Out of Bounds");
@@ -95,35 +104,41 @@ function App() {
   return (
     <div className="App">
       <h1>Current-Flow-Allostery</h1>
-      <form id="upload-form" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="csv-file">Upload File:</label>
-          <input type="file" id="csv-file" accept=".csv, .dat" onChange={handleFileChange} />
-          <button type="button" id="help-button">File Format Help</button>
+      <form onSubmit={handleSubmit} id="upload-form">
+        Upload File:&nbsp;
+        <input type="file" id="csv-file" accept=".csv, .dat" onChange={handleFileChange} required /><br></br>
+        Source Residue ID/s&nbsp;
+        <input type="text" id="source-resid" value={sourceResid} onChange={(e) => setSourceResid(e.target.value)} placeholder="Source Resid" required /><br></br>  
+        Sink Residue ID/s&nbsp;
+        <input type="text" id="sink-resid" value={sinkResid} onChange={(e) => setSinkResid(e.target.value)} placeholder="Sink Resid" required /><br></br>
+        Enter # of Top Paths(Optional)&nbsp;
+        <input type="text" id="k-resid" value={kResid} onChange={(e) => setKResid(e.target.value)} placeholder="K Resid" /><br></br>
+        
+        <div>
+          <label>
+            Label Starting Node to Start at 0 or 1? 
+            <input type="radio" name="option" value="0" onChange={(e) => setStartingIndexValue(e.target.value)} checked={startingIndexValue === '0'} />
+            0
+          </label>
+          <label>
+            <input type="radio" name="option" value="1" onChange={(e) => setStartingIndexValue(e.target.value)} checked={startingIndexValue === '1'} />
+            1
+          </label>
         </div>
-        <div className="radio-group">
-          Label Starting Node to Start at 0 or 1?
-          <label><input type="radio" name="option" value="0" defaultChecked /> 0</label>
-          <label><input type="radio" name="option" value="1" /> 1</label>
+
+        <div>
+          <label>
+            Use Average Betweenness For Top Paths?
+            <input type="radio" name="option2" value="Yes" onChange={(e) => setAverage(e.target.value)} checked={average === 'average1'} />
+            Yes
+          </label>
+          <label>
+            <input type="radio" name="option2" value="No" onChange={(e) => setAverage(e.target.value)} checked={average === 'average2'} />
+            No
+          </label>
         </div>
-        <div className="radio-group2">
-          Use Average Betweenness For Top Paths?
-          <label><input type="radio" name="option2" value="Yes" defaultChecked /> Yes</label>
-          <label><input type="radio" name="option2" value="No" /> No</label>
-        </div>
-        <label htmlFor="source-resid">Source Residue ID(s):</label>
-        <input type="text" id="source-resid" placeholder="Enter source node(s), e.g., 1 or 1,2,3" />
-        <br />
-        <label htmlFor="sink-resid">Sink Residue ID(s):</label>
-        <input type="text" id="sink-resid" placeholder="Enter sink node(s), e.g., 1 or 1,2,3" />
-        <br />
-        <label htmlFor="k-resid">Enter # of Top Paths(Optional)</label>
-        <input type="text" id="k-resid" />
-        <br />
-        <button type="submit">Submit</button>
-        <div id="loading-spinner" style={{ display: 'none' }}>
-          <img src="../static/spinner.gif" alt="Loading..." />
-        </div>
+
+        <button type="submit">Upload</button>
       </form>
       <br />
       {/* Tab links */}
