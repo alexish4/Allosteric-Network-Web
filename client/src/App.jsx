@@ -14,142 +14,109 @@ function App() {
   const [sourceResid, setSourceResid] = useState('');
   const [sinkResid, setSinkResid] = useState('');
   const [kResid, setKResid] = useState('');
-  const [average, setAverage] = useState('');
+  const [average, setAverage] = useState('Yes');
   const [startingIndexValue, setStartingIndexValue] = useState('0');
-  //const [file, setFile] = useState(null);
-
-  let resistor_1 = null;
-  let resistor_2 = null;
-
-  let source_id_array = [];
-  let sink_id_array = [];
-
-  let large_bet = 0;
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); // Show loading spinner
-
-    console.log("Test");
-
-    // Process source and sink inputs
-    let sourceIdArray = sourceResid.split(',')
-      .map(node => node.trim())
-      .filter(node => node !== '');
-
-    let sinkIdArray = sinkResid.split(',')
-      .map(node => node.trim())
-      .filter(node => node !== '');
-
-    if (startingIndexValue === "1") {
-      sourceIdArray = sourceIdArray.map(node => parseInt(node, 10) - 1); // Convert to integer
-      sinkIdArray = sinkIdArray.map(node => parseInt(node, 10) - 1);     // Convert to integer
-    } else {
-      sourceIdArray = sourceIdArray.map(node => parseInt(node, 10)); // Convert to integer
-      sinkIdArray = sinkIdArray.map(node => parseInt(node, 10));     // Convert to integer
-    }
-
-    console.log(sourceIdArray);
-    console.log(sinkIdArray);
-
-    console.log(file);
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('source', sourceIdArray);
-    formData.append('sink', sinkIdArray);
-    formData.append('k', kResid);
-    formData.append('average', average);
-
-    try {
-      const response = await axios.post('http://127.0.0.1:5000/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      const data = response.data;
-      console.log("Test 2");
-      console.log(data.largest_betweenness);
-
-      if (data.incorrect_input) {
-        alert("Input Out of Bounds");
-      } else {
-        // Handle success: update source node label, display top paths, etc.
-        updateSourceNodeLabel();
-        displayTopPaths(data.top_paths, data.top_paths2); 
-        displayRankedNodes(data.ranked_nodes_data, data.ranked_nodes_data2);
-        drawGraph(data.graph_data);
-        setupColorScaleAndEdges();
-        drawColorScale();
-        displayHistogram(data.histogram1, data.histogram2);
-        drawCorrelationMatrix(data.graph_data);
-      }
-
-    } catch (error) {
-      console.error('Error uploading file:', error);
-    } finally {
-      setLoading(false); // Hide loading spinner
-    }
   };
 
   const openTab = (tabName) => {
     setTab(tabName);
   };
 
-  useEffect(() => {
-    if (tab === 'CorrelationMatrix') {
-      // You can initialize D3.js code here
-      const svg = d3.select('#correlation-svg');
-      // D3.js code for drawing correlation matrix goes here
-    }
-  }, [tab]);
+  // Load external libraries
+  const loadScript = (src) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    document.body.appendChild(script);
+  };
 
-  
+  useEffect(() => {
+    // Load the required external scripts
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js");
+
+    // Assuming graph.js is now part of your src/ directory, import it like a module
+    import('./graph.js').then((module) => {
+        // graph.js can initialize here or include setup in a function in graph.js
+        //module.initGraph(); // This assumes there's an initGraph function in graph.js
+    });
+
+    // Any additional JavaScript from the HTML should go inside useEffect for React
+}, []);
+
 
   return (
     <div className="App">
       <h1>Current-Flow-Allostery</h1>
-      <form onSubmit={handleSubmit} id="upload-form">
-        Upload File:&nbsp;
-        <input type="file" id="csv-file" accept=".csv, .dat" onChange={handleFileChange} required /><br></br>
-        Source Residue ID/s&nbsp;
-        <input type="text" id="source-resid" value={sourceResid} onChange={(e) => setSourceResid(e.target.value)} placeholder="Source Resid" required /><br></br>  
-        Sink Residue ID/s&nbsp;
-        <input type="text" id="sink-resid" value={sinkResid} onChange={(e) => setSinkResid(e.target.value)} placeholder="Sink Resid" required /><br></br>
-        Enter # of Top Paths(Optional)&nbsp;
-        <input type="text" id="k-resid" value={kResid} onChange={(e) => setKResid(e.target.value)} placeholder="K Resid" /><br></br>
-        
-        <div>
-          <label>
-            Label Starting Node to Start at 0 or 1? 
-            <input type="radio" name="option" value="0" onChange={(e) => setStartingIndexValue(e.target.value)} checked={startingIndexValue === '0'} />
-            0
-          </label>
-          <label>
-            <input type="radio" name="option" value="1" onChange={(e) => setStartingIndexValue(e.target.value)} checked={startingIndexValue === '1'} />
-            1
-          </label>
-        </div>
-
-        <div>
-          <label>
-            Use Average Betweenness For Top Paths?
-            <input type="radio" name="option2" value="Yes" onChange={(e) => setAverage(e.target.value)} checked={average === 'average1'} />
-            Yes
-          </label>
-          <label>
-            <input type="radio" name="option2" value="No" onChange={(e) => setAverage(e.target.value)} checked={average === 'average2'} />
-            No
-          </label>
-        </div>
-
-        <button type="submit">Upload</button>
+      <form id="upload-form" encType="multipart/form-data">
+          <div className="form-group">
+              <label htmlFor="csv-file">Upload File:</label>
+              <input type="file" id="csv-file" accept=".csv, .dat" />
+              <button type="button" id="help-button">File Format Help</button>
+          </div>
+          <div className="radio-group">
+              Label Starting Node to Start at 0 or 1?
+              <label><input type="radio" name="option" defaultChecked value="0" /> 0</label>
+              <label><input type="radio" name="option" value="1" /> 1</label>
+          </div>
+          <div className="radio-group2">
+              Use Average Betweenness For Top Paths?
+              <label><input type="radio" name="option2" defaultChecked value="Yes" /> Yes</label>
+              <label><input type="radio" name="option2" value="No" /> No</label>
+          </div>
+          <label htmlFor="source-resid">Source Residue ID(s):</label>
+          <input type="text" id="source-resid" placeholder="Enter source node(s), e.g., 1 or 1,2,3" />
+          <br />
+          <label htmlFor="sink-resid">Sink Residue ID(s):</label>
+          <input type="text" id="sink-resid" placeholder="Enter sink node(s), e.g., 1 or 1,2,3" />
+          <br />
+          <label htmlFor="k-resid">Enter # of Top Paths (Optional)</label>
+          <input type="text" id="k-resid" />
+          <br />
+          <button type="submit">Submit</button>
+          <div id="loading-spinner" style={{ display: 'none' }}>
+              <img src="../static/spinner.gif" alt="Loading... May take up to a few minutes" />
+          </div>
       </form>
+      <br />
+      <div id="modal-overlay" className="modal-overlay"></div>
+
+      <div id="modal" className="modal">
+          <span id="modal-close" className="modal-close">&times;</span>
+          <h3>File Upload Help</h3>
+          <p>Select a CSV or DAT file to upload. This will be used for generating graphs and analyzing data. Correlation Values must be between 0 and 1!</p>
+          <p>CSV Format:</p>
+          <p>
+              For CSVs, please use a 3-column structure in the following format: [resi], [resj], [Correlation Value of an Edge]. Use ',' as
+              delimiter and include both: [0, 1, 0.5] and [1, 0, 0.5]. Don’t include column headers.
+          </p>
+          <p>DAT Format:</p>
+          <p>Submit .dat files with a correlation matrix of the graph.</p>
+      </div>
+
+      <div id="label-container" style={{ textAlign: 'center' }}>
+          <label id="source-node-label" style={{ display: 'none', color: 'green' }}>Source Node: </label>
+          <br />
+          <label id="sink-node-label" style={{ display: 'none', color: 'red' }}>Sink Node: </label>
+          <br />
+          <br />
+          <label id="directions-label" style={{ display: 'none' }}>Choose 2 Resistors to Calculate Betweenness. Drag to Move</label>
+      </div>
+
+      <div id="graph-container" style={{ width: '100%', height: '600px', overflow: 'hidden', position: 'relative' }}>
+          <svg id="graph-svg" width="100%" height="100%"></svg>
+      </div>
+      <button id="calculate-button" style={{ display: 'none' }}>Calculate</button>
+      <button id="refresh-button" style={{ display: 'none' }}>Refresh</button>
+      <button id="zoom-in-button">Zoom In</button>
+      <button id="zoom-out-button">Zoom Out</button>
+      <button id="reset-zoom-button">Reset Zoom</button>
+      <button id="download-pdf" style={{ display: 'none' }}>Download to PDF</button>
+
+      <pre id="output"></pre>
+
       <br />
       {/* Tab links */}
       <div className="tab">
@@ -187,10 +154,6 @@ function App() {
           <div id="ranked-nodes"></div>
         </div>
       )}
-
-      <button id="zoom-in-button">Zoom In</button>
-      <button id="zoom-out-button">Zoom Out</button>
-      <button id="reset-zoom-button">Reset Zoom</button>
     </div>
   );
 }
