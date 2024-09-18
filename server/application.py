@@ -151,6 +151,7 @@ def upload_file():
 
         #save histograms to different page
         img_data, img_data2 = histograms(top_paths_lengths, top_paths2_lengths)
+        #print(img_data, " is type for img_data")
 
         frequencyGraph(most_important_nodes, most_important_nodes2)
 

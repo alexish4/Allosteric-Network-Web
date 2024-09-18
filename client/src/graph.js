@@ -282,15 +282,19 @@ function drawGraph(graph) {
             const resist1Resid = resistor_1;
             const resist2Resid = resistor_2;
 
+            console.log(resist1Resid, " is resist1");
+            console.log(resist2Resid, " is resist2");
+
             const formData = new FormData();
             formData.append('resist1', resist1Resid);
             formData.append('resist2', resist2Resid);
-            const response = await fetch('/calculate', {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
+            const response = axios.post('http://127.0.0.1:5000/calculate', formData, {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            
+            const result = response.data;
             if (result.betweenness_score === 0) {
                 alert("Please select 2 Resistors that have a direct connection");
             } else {
