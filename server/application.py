@@ -20,10 +20,10 @@ import matplotlib.pyplot as plt
 from collections import Counter
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import logging
-#import EnergyCode
+import EnergyCode
 
 app=Flask(__name__)
-#application=app
+application=app
 CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 adj_matrix = []
@@ -55,9 +55,10 @@ def process_dat_file(file):
 
     return rows, cols, correlations
 
-# @app.route('/nglview')
-# def nglview():
-#     return send_from_directory('static/dist', 'nglview.html', nglview_html=EnergyCode.visualizeBetweenness())
+@app.route('/nglview')
+def nglview():
+    ngl_content = EnergyCode.visualizeBetweenness()
+    return jsonify(ngl_content)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
