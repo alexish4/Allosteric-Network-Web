@@ -173,33 +173,33 @@ function App() {
 
       {/* Tab content */}
       {tab === 'TopPaths' && (
-          <div id="TopPaths" className="tabcontent">
-              <h2>Top Shortest Paths</h2>
-              <div style={{ display: "flex" }}>
-                  <div style={{ flex: 1 }}>
-                      <strong>Edge Length = -ln(betweenness)</strong>
-                      {paths.map((path, index) => (
-                          <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
-                              <div style={{ marginRight: "10px" }}>
-                                  Path {index + 1}: Total Path Length From Betweenness: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
-                              </div>
-                              <button onClick={() => highlightPathEdges(path)}>Highlight</button>
-                          </div>
-                      ))}
+        <div id="TopPaths" className="tabcontent">
+          <h2>Top Shortest Paths</h2>
+          <div style={{ display: "flex" }}>
+            <div style={{ flex: 1 }}>
+              <strong>Edge Length = -ln(betweenness)</strong>
+              {paths.map((path, index) => (
+                <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ marginRight: "10px" }}>
+                      Path {index + 1}: Total Path Length From Betweenness: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
                   </div>
-                  <div style={{ flex: 1 }}>
-                      <strong>Edge Length = -ln(correlation)</strong>
-                      {paths2.map((path, index) => (
-                          <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
-                              <div style={{ marginRight: "10px" }}>
-                                  Path {index + 1}: Total Path Length From Correlation: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
-                              </div>
-                              <button onClick={() => highlightPathEdges(path)}>Highlight</button>
-                          </div>
-                      ))}
+                  <button onClick={() => highlightPathEdges(path)}>Highlight</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1 }}>
+              <strong>Edge Length = -ln(correlation)</strong>
+              {paths2.map((path, index) => (
+                <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ marginRight: "10px" }}>
+                      Path {index + 1}: Total Path Length From Correlation: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
                   </div>
-              </div>
+                  <button onClick={() => highlightPathEdges(path)}>Highlight</button>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
       )}
 
       {tab === 'Histograms' && (
