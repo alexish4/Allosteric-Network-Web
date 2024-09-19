@@ -16,6 +16,14 @@ function App() {
   const [kResid, setKResid] = useState('');
   const [average, setAverage] = useState('Yes');
   const [startingIndexValue, setStartingIndexValue] = useState('0');
+  const [imgData, setImgData] = useState('');
+  const [imgData2, setImgData2] = useState('');
+
+  // Expose displayHistogram globally
+  window.displayHistogram = (imgData, imgData2) => {
+      setImgData(imgData);
+      setImgData2(imgData2);
+  };
 
   const handleFileChange = (event) => {
     setSelectedFile(event.target.files[0]);
@@ -137,8 +145,12 @@ function App() {
       {tab === 'Histograms' && (
         <div id="Histograms" className="tabcontent">
           <h2>Histograms</h2>
-          <div id="histogram-container" style={{ textAlign: 'center', marginTop: '20px' }}></div>
-          <div id="histogram-container2" style={{ textAlign: 'center', marginTop: '20px' }}></div>
+          <div id="histogram-container" style={{ textAlign: 'center', marginTop: '20px' }}>
+              {imgData && <img src={`data:image/png;base64,${imgData}`} alt="Histogram 1" />}
+          </div>
+          <div id="histogram-container2" style={{ textAlign: 'center', marginTop: '20px' }}>
+              {imgData2 && <img src={`data:image/png;base64,${imgData2}`} alt="Histogram 2" />}
+          </div>
         </div>
       )}
 
