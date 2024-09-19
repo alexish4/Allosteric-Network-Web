@@ -18,6 +18,43 @@ function App() {
   const [startingIndexValue, setStartingIndexValue] = useState('0');
   const [imgData, setImgData] = useState('');
   const [imgData2, setImgData2] = useState('');
+  const [paths, setPaths] = useState([]);
+  const [paths2, setPaths2] = useState([]);
+
+  window.displayTopPaths = (paths, paths2) => {
+    setPaths(paths);
+    setPaths2(paths2);
+  }
+
+  function highlightPathEdges(path) {
+    // Convert the path's nodes into a set of edges
+    const edges = [];
+    for (let i = 0; i < path.nodes.length - 1; i++) {
+        edges.push({
+            source: path.nodes[i],
+            target: path.nodes[i + 1]
+        });
+    }
+
+    // Update the styles of the links to highlight the edges in the path
+    d3.selectAll(".links line")
+    .attr("stroke", d => {
+        // Check if the current link is part of the highlighted path
+        const isHighlighted = edges.some(edge =>
+            (d.source.id === edge.source && d.target.id === edge.target) ||
+            (d.source.id === edge.target && d.target.id === edge.source)
+        );
+        return isHighlighted ? "orange" : "#999";
+    })
+    .attr("stroke-width", d => {
+        // Increase the stroke width for highlighted edges
+        const isHighlighted = edges.some(edge =>
+            (d.source.id === edge.source && d.target.id === edge.target) ||
+            (d.source.id === edge.target && d.target.id === edge.source)
+        );
+        return isHighlighted ? 16 : 8;
+    });
+  }
 
   // Expose displayHistogram globally
   window.displayHistogram = (imgData, imgData2) => {
@@ -136,10 +173,33 @@ function App() {
 
       {/* Tab content */}
       {tab === 'TopPaths' && (
-        <div id="TopPaths" className="tabcontent">
-          <h2>Top Shortest Paths</h2>
-          <div id="top-paths"></div>
-        </div>
+          <div id="TopPaths" className="tabcontent">
+              <h2>Top Shortest Paths</h2>
+              <div style={{ display: "flex" }}>
+                  <div style={{ flex: 1 }}>
+                      <strong>Edge Length = -ln(betweenness)</strong>
+                      {paths.map((path, index) => (
+                          <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
+                              <div style={{ marginRight: "10px" }}>
+                                  Path {index + 1}: Total Path Length From Betweenness: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
+                              </div>
+                              <button onClick={() => highlightPathEdges(path)}>Highlight</button>
+                          </div>
+                      ))}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                      <strong>Edge Length = -ln(correlation)</strong>
+                      {paths2.map((path, index) => (
+                          <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
+                              <div style={{ marginRight: "10px" }}>
+                                  Path {index + 1}: Total Path Length From Correlation: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
+                              </div>
+                              <button onClick={() => highlightPathEdges(path)}>Highlight</button>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
       )}
 
       {tab === 'Histograms' && (
