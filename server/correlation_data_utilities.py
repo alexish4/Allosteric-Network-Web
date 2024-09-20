@@ -1597,10 +1597,8 @@ def drawProtNetEdge(protStruc,resID1,resID2,ngViewOb,
     # Create an edge label based on the residue names and IDs
     edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1-1}-{resID2-1})'
     
-    return ngViewOb.shape.add_cylinder(
-        list(crd1),list(crd2),edgeColor,radius,
-        edgeLabel,
-        *shapeArgs,**shapeKwargs)
+    return ngViewOb.add_representation('cylinder', selection=f"resid {resID1} and name CA", color=edgeColor, radius=radius, label=edgeLabel, *shapeArgs, **shapeKwargs)
+
 
 def getCorrNetEdgeColors(valMat,maskInds=None,
                          cmap=matplotlib.cm.get_cmap('viridis',1024),
