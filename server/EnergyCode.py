@@ -576,9 +576,16 @@ def visualizeBetweenness():
                         frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
                         undirected=True)
     buffer = StringIO()
+
+    #view._unset_serialization()
+
+    #nv.write_html('file.html', [view])
+    with open('file.html', 'r') as f:
+        html_content = f.read()
+
     nv.write_html(buffer, [view]) 
 
-    return buffer.getvalue()
+    return html_content
 
 if __name__ == '__main__':
     visualizeBetweenness()

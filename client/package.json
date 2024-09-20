@@ -10,10 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@jupyter-widgets/html-manager": "^1.0.1",
     "axios": "^1.7.7",
     "d3": "^7.9.0",
     "html2pdf.js": "^0.10.2",
+    "jquery": "^3.7.1",
     "ngl": "^2.3.1",
+    "nglview-js-widgets": "^3.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

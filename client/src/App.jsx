@@ -3,6 +3,9 @@ import './App.css';
 import * as d3 from 'd3';
 import html2pdf from 'html2pdf.js';
 import axios from 'axios';
+// import 'jquery';
+// import 'nglview-js-widgets';
+
 
 function App() {
   const [count, setCount] = useState(0);
@@ -20,6 +23,7 @@ function App() {
   const [imgData2, setImgData2] = useState('');
   const [paths, setPaths] = useState([]);
   const [paths2, setPaths2] = useState([]);
+  const [nglContent, setNglContent] = useState(null);
 
   window.displayTopPaths = (paths, paths2) => {
     setPaths(paths);
@@ -68,6 +72,22 @@ function App() {
 
   const openTab = (tabName) => {
     setTab(tabName);
+
+    if (tabName === 'NGLView') {
+      fetchNGLContent();
+    }
+  };
+
+  const fetchNGLContent = async () => {
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/nglview');
+      const nglHTML = response.data;
+
+      // Store the HTML content to be rendered
+      setNglContent(nglHTML);
+    } catch (error) {
+      console.error('Error fetching NGL content:', error);
+    }
   };
 
   // Load external libraries
@@ -169,6 +189,7 @@ function App() {
         <button className="tablinks" onClick={() => openTab('Histograms')}>Histograms</button>
         <button className="tablinks" onClick={() => openTab('CorrelationMatrix')}>Correlation Matrix</button>
         <button className="tablinks" onClick={() => openTab('RankedNodes')}>Ranked Nodes</button>
+        <button className="tablinks" onClick={() => openTab('NGLView')}>NGL View</button>
       </div>
 
       {/* Tab content */}
@@ -224,6 +245,19 @@ function App() {
         <div id="RankedNodes" className="tabcontent">
           <h2>Ranked Nodes</h2>
           <div id="ranked-nodes"></div>
+        </div>
+      )}
+      {tab === 'NGLView' && (
+        <div>
+          {nglContent ? (
+            <iframe
+              title="NGLView"
+              srcDoc={nglContent}
+              style={{ width: '100%', height: '600px', border: 'none' }}
+            />
+          ) : (
+            <p>Loading NGL View...</p>
+          )}
         </div>
       )}
     </div>
