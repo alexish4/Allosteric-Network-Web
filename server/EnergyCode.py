@@ -579,11 +579,13 @@ def visualizeBetweenness():
 
     #view._unset_serialization()
 
+    nv.write_html(buffer, [view]) 
+
     #nv.write_html('file.html', [view])
     with open('file.html', 'r') as f:
         html_content = f.read()
+    print(html_content)
 
-    nv.write_html(buffer, [view]) 
 
     return html_content
 

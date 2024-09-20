@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@jupyter-widgets/html-manager": "^1.0.1",
+    "@jupyter-widgets/html-manager": "^0.20.0",
     "axios": "^1.7.7",
     "d3": "^7.9.0",
     "html2pdf.js": "^0.10.2",
