@@ -21,6 +21,7 @@ import nglview as nv
 from IPython.display import display, HTML
 import tempfile
 from io import StringIO
+from flask import jsonify
 
 def visualizeBetweenness():
     energyDataDir='energy_topology'
@@ -565,30 +566,24 @@ def visualizeBetweenness():
     #Render the filtered interaction network using nglview with
     #the edge width and colormaps generated above
     struc=strucDict[list(strucDict.keys())[0]]
-    view=nv.show_mdanalysis(struc)
-    view.clear_representations()
-    for res in sourceSet:
-        view.add_representation('spacefill',selection=str(res+1)+' and .CA')
-    for res in targetSet:
-        view.add_representation('spacefill',selection=str(res+1)+' and .CA')
-    view.add_representation('cartoon',selection='backbone',alpha=.5)
-    correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=view,
-                        frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
-                        undirected=True)
-    buffer = StringIO()
+    source_set = [int(res+1) for res in sourceSet]
+    target_set = [int(res+1) for res in targetSet]
 
-    #view._unset_serialization()
-
-    nv.write_html(buffer, [view]) 
-
-    # nv.write_html('file.html', [view])
-    # with open('file.html', 'r') as f:
-    #     html_content = f.read()
-    # #print(html_content)
-    html_content = buffer.getvalue()
-
-
-    return html_content
+    # Create a simplified JSON-serializable representation
+    view_data = {
+        'sourceSet': source_set,
+        'targetSet': target_set,
+        'representations': [
+            {'type': 'spacefill', 'selection': f'{res} and .CA'} for res in source_set
+        ] + [
+            {'type': 'spacefill', 'selection': f'{res} and .CA'} for res in target_set
+        ] + [
+            {'type': 'cartoon', 'selection': 'backbone', 'alpha': 0.5}
+        ]
+    }
+    
+    # Send the view data as JSON
+    return view_data
 
 if __name__ == '__main__':
     visualizeBetweenness()

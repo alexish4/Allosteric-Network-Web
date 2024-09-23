@@ -74,20 +74,48 @@ function App() {
     setTab(tabName);
 
     if (tabName === 'NGLView') {
+      console.log("fetch test");
       fetchNGLContent();
     }
   };
 
   const fetchNGLContent = async () => {
-    try {
-      const response = await axios.post('http://127.0.0.1:5000/nglview');
-      const nglHTML = response.data;
+    const script = document.createElement('script');
+    script.src = "../node_modules/ngl/dist/ngl.js";
 
-      // Store the HTML content to be rendered
-      setNglContent(nglHTML);
-    } catch (error) {
-      console.error('Error fetching NGL content:', error);
-    }
+    console.log("fetch test 2");
+
+    script.onload = () => {
+      console.log("fetch test 3");
+      const stage = new NGL.Stage("viewport");
+      try {
+        axios.post('http://127.0.0.1:5000/nglview', {
+          headers: {
+              'Content-Type': 'multipart/form-data',
+          },
+        })
+        .then(response => {
+            const data = response.data;
+
+            console.log("fetch test 4");
+
+            stage.loadFile("rcsb://1CRN").then(function (component) {
+              // Apply representations from Flask data
+              data.representations.forEach(rep => {
+                component.addRepresentation(rep.type, {
+                  selection: rep.selection,
+                  alpha: rep.alpha || 1.0
+                });
+              });
+              component.autoView();
+            });
+        })
+      } catch (error) {
+        console.error('Error fetching NGL content:', error);
+      }
+    };
+
+    document.body.appendChild(script);
   };
 
   // Load external libraries
@@ -109,7 +137,7 @@ function App() {
     });
 
     // Any additional JavaScript from the HTML should go inside useEffect for React
-}, []);
+  }, []);
 
 
   return (
@@ -248,17 +276,7 @@ function App() {
         </div>
       )}
       {tab === 'NGLView' && (
-        <div>
-          {nglContent ? (
-            <iframe
-              title="NGLView"
-              srcDoc={nglContent}
-              style={{ width: '100%', height: '600px', border: 'none' }}
-            />
-          ) : (
-            <p>Loading NGL View...</p>
-          )}
-        </div>
+        <div id="viewport" style={{ width: '100%', height: '400px' }}></div>
       )}
     </div>
   );
