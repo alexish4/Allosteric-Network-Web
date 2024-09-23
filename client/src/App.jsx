@@ -109,6 +109,27 @@ function App() {
               });
               component.autoView();
             });
+
+            // Create a new shape for cylinders (edges)
+            var shape = new NGL.Shape("edgeShape", { disableImpostor: true });
+
+            // Iterate through the edge list and add cylinders for each edge
+            data.edges.forEach(edge => {
+              // Add a cylinder for each edge, connecting two residues (resID1 and resID2)
+              shape.addCylinder(
+                edge.coords.start,  // Start position of the cylinder
+                edge.coords.end,    // End position of the cylinder
+                edge.color,         // Cylinder color
+                edge.radius         // Cylinder radius
+              );
+            });
+
+            // Add the shape to the stage
+            var shapeComp = stage.addComponentFromObject(shape);
+            shapeComp.addRepresentation("buffer");
+
+            // Adjust view to include the cylinders
+            shapeComp.autoView();
         })
       } catch (error) {
         console.error('Error fetching NGL content:', error);

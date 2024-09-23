@@ -569,17 +569,28 @@ def visualizeBetweenness():
     source_set = [int(res+1) for res in sourceSet]
     target_set = [int(res+1) for res in targetSet]
 
+    # Collect representations
+    representations = []
+    for res in sourceSet:
+        representations.append({'type': 'spacefill', 'selection': f'{res+1} and .CA'})
+    for res in targetSet:
+        representations.append({'type': 'spacefill', 'selection': f'{res+1} and .CA'})
+    
+    # Cartoon representation
+    representations.append({'type': 'cartoon', 'selection': 'backbone', 'alpha': 0.5})
+
+    edge_list = correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=None,
+                        frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
+                        undirected=True)
+    
+    print(edge_list)
+
     # Create a simplified JSON-serializable representation
     view_data = {
         'sourceSet': source_set,
         'targetSet': target_set,
-        'representations': [
-            {'type': 'spacefill', 'selection': f'{res} and .CA'} for res in source_set
-        ] + [
-            {'type': 'spacefill', 'selection': f'{res} and .CA'} for res in target_set
-        ] + [
-            {'type': 'cartoon', 'selection': 'backbone', 'alpha': 0.5}
-        ]
+        'representations': representations,
+        'edges': edge_list
     }
     
     # Send the view data as JSON
