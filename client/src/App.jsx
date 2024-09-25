@@ -80,63 +80,13 @@ function App() {
   };
 
   const fetchNGLContent = async () => {
-    const script = document.createElement('script');
-    script.src = "../node_modules/ngl/dist/ngl.js";
+    const response = await axios.post('http://127.0.0.1:5000/nglview');
+    const nglHTML = response.data;
 
-    console.log("fetch test 2");
+    console.log(nglHTML);
 
-    script.onload = () => {
-      console.log("fetch test 3");
-      const stage = new NGL.Stage("viewport");
-      try {
-        axios.post('http://127.0.0.1:5000/nglview', {
-          headers: {
-              'Content-Type': 'multipart/form-data',
-          },
-        })
-        .then(response => {
-            const data = response.data;
-
-            console.log("fetch test 4");
-
-            stage.loadFile("rcsb://1CRN").then(function (component) {
-              // Apply representations from Flask data
-              data.representations.forEach(rep => {
-                component.addRepresentation(rep.type, {
-                  selection: rep.selection,
-                  alpha: rep.alpha || 1.0
-                });
-              });
-              component.autoView();
-            });
-
-            // Create a new shape for cylinders (edges)
-            var shape = new NGL.Shape("edgeShape", { disableImpostor: true });
-
-            // Iterate through the edge list and add cylinders for each edge
-            data.edges.forEach(edge => {
-              // Add a cylinder for each edge, connecting two residues (resID1 and resID2)
-              shape.addCylinder(
-                edge.coords.start,  // Start position of the cylinder
-                edge.coords.end,    // End position of the cylinder
-                edge.color,         // Cylinder color
-                edge.radius         // Cylinder radius
-              );
-            });
-
-            // Add the shape to the stage
-            var shapeComp = stage.addComponentFromObject(shape);
-            shapeComp.addRepresentation("buffer");
-
-            // Adjust view to include the cylinders
-            shapeComp.autoView();
-        })
-      } catch (error) {
-        console.error('Error fetching NGL content:', error);
-      }
-    };
-
-    document.body.appendChild(script);
+    // Store the HTML content to be rendered
+    setNglContent(nglHTML);
   };
 
   // Load external libraries
@@ -297,7 +247,19 @@ function App() {
         </div>
       )}
       {tab === 'NGLView' && (
-        <div id="viewport" style={{ width: '100%', height: '400px' }}></div>
+        <div>   
+          {nglContent ? (
+            <iframe
+              title="NGLView"
+              srcDoc={nglContent}
+              style={{ width: '100%', height: '600px', border: 'none' }}
+            />
+          ) : (
+            <p>Loading NGL View...</p>
+          )}
+          
+        </div>
+        
       )}
     </div>
   );

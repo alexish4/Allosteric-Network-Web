@@ -22,6 +22,7 @@ from IPython.display import display, HTML
 import tempfile
 from io import StringIO
 from flask import jsonify
+import py3Dmol
 
 def visualizeBetweenness():
     energyDataDir='energy_topology'
@@ -376,13 +377,13 @@ def visualizeBetweenness():
     #Render the filtered interaction network using nglview with
     #the edge width and colormaps generated above
     struc=strucDict[list(strucDict.keys())[0]]
-    view=nv.show_mdanalysis(struc,overwrite=True)
-    view.clear_representations()
-    view.add_representation('cartoon',alpha=.5)
-    correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=view,
-                        frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
-                        undirected=True)
-    view
+    # view=nv.show_mdanalysis(struc,overwrite=True)
+    # view.clear_representations()
+    # view.add_representation('cartoon',alpha=.5)
+    # correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=view,
+    #                     frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
+    #                     undirected=True)
+    # view
 
     #In order to apply current flow betweenness methods, we need one or more source
     #and target residues.
@@ -566,35 +567,44 @@ def visualizeBetweenness():
     #Render the filtered interaction network using nglview with
     #the edge width and colormaps generated above
     struc=strucDict[list(strucDict.keys())[0]]
-    source_set = [int(res+1) for res in sourceSet]
-    target_set = [int(res+1) for res in targetSet]
+    pdb_str = get_pdb_string(struc)
 
-    # Collect representations
-    representations = []
+    view = py3Dmol.view(width=400, height=300)
+    view.addModelsAsFrames(pdb_str, "pdb")
+
+    # For residues in sourceSet and targetSet
     for res in sourceSet:
-        representations.append({'type': 'spacefill', 'selection': f'{res+1} and .CA'})
+        view.setStyle({'resi': str(res+1)}, {'sphere': {'radius': 1.5}})
     for res in targetSet:
-        representations.append({'type': 'spacefill', 'selection': f'{res+1} and .CA'})
-    
-    # Cartoon representation
-    representations.append({'type': 'cartoon', 'selection': 'backbone', 'alpha': 0.5})
+        view.setStyle({'resi': str(res+1)}, {'sphere': {'radius': 1.5}})
 
-    edge_list = correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=None,
+    # For cartoon backbone representation
+    view.setStyle({'chain': 'A'}, {'cartoon': {'color': 'spectrum', 'opacity': 0.5}})
+
+    correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,view=view,
                         frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
                         undirected=True)
     
-    print(edge_list)
+    buffer = StringIO()
+    view.write_html(buffer)
 
-    # Create a simplified JSON-serializable representation
-    view_data = {
-        'sourceSet': source_set,
-        'targetSet': target_set,
-        'representations': representations,
-        'edges': edge_list
-    }
+    # Inject 3Dmol.js CDN script
+    html_content = buffer.getvalue()
+    html_content = """
+    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>     
+    <script src="https://3Dmol.org/build/3Dmol.ui-min.js"></script>  
+    """ + html_content
     
     # Send the view data as JSON
-    return view_data
+    return html_content
+
+# Extract atoms and residues from MDAnalysis Universe
+def get_pdb_string(universe):
+    pdb_str = ""
+    for atom in universe.atoms:
+        pdb_str += f"ATOM  {atom.index+1:>5} {atom.name:<4} {atom.resname:<3} {atom.resid:>4}    {atom.position[0]:>8.3f}{atom.position[1]:>8.3f}{atom.position[2]:>8.3f}  1.00  0.00           {atom.element:<2}\n"
+    pdb_str += "END\n"
+    return pdb_str
 
 if __name__ == '__main__':
     visualizeBetweenness()

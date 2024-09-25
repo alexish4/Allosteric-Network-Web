@@ -1577,39 +1577,20 @@ def bokeh_tidtyDataTable_barChart(dataTable,xColumns,valColumn,
         p.yaxis.axis_label = yAxisLabel
     show(p)
 
-def drawProtNetEdge(protStruc,resID1,resID2,ngViewOb,
+def drawProtNetEdge(protStruc,resID1,resID2,view,
                     frame=0,edgeColor=[.5,.5,.5],radius=1,
                     *shapeArgs,**shapeKwargs):
     # Use MDAnalysis to calculate the center of mass for each residue
     crd1 = protStruc.select_atoms(f"resid {resID1} and name CA").center_of_mass()
     crd2 = protStruc.select_atoms(f"resid {resID2} and name CA").center_of_mass()
         
-    # Get the residue names and IDs using MDAnalysis
-    res1 = protStruc.residues[resID1 - 1]
-    res2 = protStruc.residues[resID2 - 1]
-    
-    resname1 = res1.resname
-    resid1 = (res1.resid)
-    
-    resname2 = res2.resname
-    resid2 = int(res2.resid)
-    
-    # Create an edge label based on the residue names and IDs
-    edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1-1}-{resID2-1})'
-    
-    #converting to python types instead of numpy types so we can jsonify
-    return {
-        'type': 'cylinder',
-        'resID1': int(resID1),
-        'resID2': int(resID2),
-        'color': [float(c) for c in edgeColor],
-        'radius': float(radius),
-        'label': edgeLabel,
-        'coords': {
-            'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
-            'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
-        }
-    }
+    # Draw cylinder connecting the two residues
+    view.addCylinder({
+        'start': {'x': crd1[0], 'y': crd1[1], 'z': crd1[2]},
+        'end': {'x': crd2[0], 'y': crd2[1], 'z': crd2[2]},
+        'radius': radius,
+        'color': f'rgb({int(edgeColor[0]*255)}, {int(edgeColor[1]*255)}, {int(edgeColor[2]*255)})'
+    })
 
 
 def getCorrNetEdgeColors(valMat,maskInds=None,
@@ -1697,7 +1678,7 @@ def getCorrNetEdgeRadii(valMat,maskInds=None,
     radiiMat[nzInds]=rMap(np.array(radiiMat[nzInds]))
     return(radiiMat)
 
-def drawProtCorrMat(protStruc,corrMat,ngViewOb,
+def drawProtCorrMat(protStruc,corrMat,view,
                     frame=0,colorsArray=None,radiiMat=None,
                     undirected=True):
     nzInds=np.nonzero(corrMat)
@@ -1713,14 +1694,7 @@ def drawProtCorrMat(protStruc,corrMat,ngViewOb,
     else:
         indArray=np.array([nzInds[0],nzInds[1]]).T
     for nzInd in indArray:
-        if not (colorsArray is None):
-            colorParm={'edgeColor':list(colorsArray[nzInd[0],nzInd[1],:])}
-        else:
-            colorParm={}
+        color = colorsArray[nzInd[0], nzInd[1], :] if colorsArray is not None else [0.5, 0.5, 0.5]
+        drawProtNetEdge(protStruc, nzInd[0] + 1, nzInd[1] + 1, view, edgeColor=color, radius=radiiMat[nzInd[0], nzInd[1]])
 
-        edgeData = drawProtNetEdge(
-            protStruc, nzInd[0] + 1, nzInd[1] + 1, None,  # ngViewOb ignored, collecting data only
-            frame=frame, radius=radMat[nzInd[0], nzInd[1]], **colorParm
-        )
-        edgeList.append(edgeData)
-    return edgeList
+        
