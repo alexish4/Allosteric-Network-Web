@@ -79,16 +79,20 @@ function App() {
   };
 
   const fetchNGLContent = async () => {
-    // const response = await axios.post('http://127.0.0.1:5000/nglview');
-    // const nglHTML = response.data;
+    const response = await axios.post('http://127.0.0.1:5000/nglview');
+    const data = response.data;
 
     let element = document.querySelector('#viewport');
-    let config = { backgroundColor: 'orange' };
+    let config = { backgroundColor: 'white' };
     let viewer = $3Dmol.createViewer( element, config );
-    viewer.addSphere({ center: {x:0, y:0, z:0}, radius: 10.0, color: 'green' });
-    viewer.zoomTo();
-    viewer.render();
-    viewer.zoom(0.8, 2000);
+    let pdbUri = '../../server/output.pdb';
+    console.log(data);
+    let v = viewer;
+    v.addModel( data, "pdb" );                       /* load data */
+    v.setStyle({}, {cartoon: {color: 'spectrum'}});  /* style all atoms */
+    v.zoomTo();                                      /* set camera */
+    v.render();                                      /* render scene */
+    v.zoom(1.2, 1000);                               /* slight zoom */
   };
 
   // Load external libraries

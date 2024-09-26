@@ -567,36 +567,14 @@ def visualizeBetweenness():
     #Render the filtered interaction network using nglview with
     #the edge width and colormaps generated above
     struc=strucDict[list(strucDict.keys())[0]]
-    pdb_str = get_pdb_string(struc)
 
-    view = py3Dmol.view(width=400, height=300)
-    view.addModelsAsFrames(pdb_str, "pdb")
+    struc.atoms.write("output.pdb")
 
-    # For residues in sourceSet and targetSet
-    for res in sourceSet:
-        view.setStyle({'resi': str(res+1)}, {'sphere': {'radius': 1.5}})
-    for res in targetSet:
-        view.setStyle({'resi': str(res+1)}, {'sphere': {'radius': 1.5}})
+    with open("output.pdb", 'r') as file:
+        file_content = file.read()
 
-    # For cartoon backbone representation
-    view.setStyle({'chain': 'A'}, {'cartoon': {'color': 'spectrum', 'opacity': 0.5}})
-
-    correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,view=view,
-                        frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
-                        undirected=True)
+    return file_content
     
-    buffer = StringIO()
-    view.write_html(buffer)
-
-    # Inject 3Dmol.js CDN script
-    html_content = buffer.getvalue()
-    html_content = """
-    <script src="https://3Dmol.org/build/3Dmol-min.js"></script>     
-    <script src="https://3Dmol.org/build/3Dmol.ui-min.js"></script>  
-    """ + html_content
-    
-    # Send the view data as JSON
-    return html_content
 
 # Extract atoms and residues from MDAnalysis Universe
 def get_pdb_string(universe):
