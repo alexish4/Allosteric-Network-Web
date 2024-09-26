@@ -78,7 +78,7 @@ function App() {
     setTab(tabName);
   };
 
-  const fetchNGLContent = async () => {
+  const fetch3DMol = async () => {
     const response = await axios.post('http://127.0.0.1:5000/nglview');
     const data = response.data;
 
@@ -113,9 +113,9 @@ function App() {
         //module.initGraph(); // This assumes there's an initGraph function in graph.js
     });
 
-    if (tab === 'NGLView') {
+    if (tab === '3DView') {
       console.log("fetch test");
-      fetchNGLContent();
+      fetch3DMol();
     }
 
     // Any additional JavaScript from the HTML should go inside useEffect for React
@@ -199,7 +199,7 @@ function App() {
         <button className="tablinks" onClick={() => openTab('Histograms')}>Histograms</button>
         <button className="tablinks" onClick={() => openTab('CorrelationMatrix')}>Correlation Matrix</button>
         <button className="tablinks" onClick={() => openTab('RankedNodes')}>Ranked Nodes</button>
-        <button className="tablinks" onClick={() => openTab('NGLView')}>NGL View</button>
+        <button className="tablinks" onClick={() => openTab('3DView')}>3D View</button>
       </div>
 
       {/* Tab content */}
@@ -257,7 +257,7 @@ function App() {
           <div id="ranked-nodes"></div>
         </div>
       )}
-      {tab === 'NGLView' && (
+      {tab === '3DView' && (
         <div id="viewport" class="mol-container"></div>
       )}
     </div>
