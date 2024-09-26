@@ -3,7 +3,11 @@ import './App.css';
 import * as d3 from 'd3';
 import html2pdf from 'html2pdf.js';
 import axios from 'axios';
-// import 'jquery';
+import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
+  console.log($3Dmol);
+  //can do things with $3Dmol here
+  });
+  import $ from "jquery";
 // import 'nglview-js-widgets';
 
 
@@ -72,21 +76,19 @@ function App() {
 
   const openTab = (tabName) => {
     setTab(tabName);
-
-    if (tabName === 'NGLView') {
-      console.log("fetch test");
-      fetchNGLContent();
-    }
   };
 
   const fetchNGLContent = async () => {
-    const response = await axios.post('http://127.0.0.1:5000/nglview');
-    const nglHTML = response.data;
+    // const response = await axios.post('http://127.0.0.1:5000/nglview');
+    // const nglHTML = response.data;
 
-    console.log(nglHTML);
-
-    // Store the HTML content to be rendered
-    setNglContent(nglHTML);
+    let element = document.querySelector('#viewport');
+    let config = { backgroundColor: 'orange' };
+    let viewer = $3Dmol.createViewer( element, config );
+    viewer.addSphere({ center: {x:0, y:0, z:0}, radius: 10.0, color: 'green' });
+    viewer.zoomTo();
+    viewer.render();
+    viewer.zoom(0.8, 2000);
   };
 
   // Load external libraries
@@ -107,8 +109,13 @@ function App() {
         //module.initGraph(); // This assumes there's an initGraph function in graph.js
     });
 
+    if (tab === 'NGLView') {
+      console.log("fetch test");
+      fetchNGLContent();
+    }
+
     // Any additional JavaScript from the HTML should go inside useEffect for React
-  }, []);
+  }, [tab]);
 
 
   return (
@@ -247,19 +254,7 @@ function App() {
         </div>
       )}
       {tab === 'NGLView' && (
-        <div>   
-          {nglContent ? (
-            <iframe
-              title="NGLView"
-              srcDoc={nglContent}
-              style={{ width: '100%', height: '600px', border: 'none' }}
-            />
-          ) : (
-            <p>Loading NGL View...</p>
-          )}
-          
-        </div>
-        
+        <div id="viewport" class="mol-container"></div>
       )}
     </div>
   );
