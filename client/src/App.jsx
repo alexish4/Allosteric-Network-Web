@@ -104,7 +104,15 @@ function App() {
         }
         return '0x000000'; // default to black if invalid
       };
-      console.log("Test");
+
+      const tooltip = document.createElement('div');
+      tooltip.style.position = 'absolute';
+      tooltip.style.backgroundColor = '#fff';
+      tooltip.style.border = '1px solid #ccc';
+      tooltip.style.padding = '5px';
+      tooltip.style.display = 'none';  // Hide by default
+      document.body.appendChild(tooltip);
+
       data.edges.forEach(edge => {
         const hexColor = rgbToHex(edge.color);
         viewer.addCylinder(
@@ -112,6 +120,24 @@ function App() {
           end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
           radius: edge.radius,
           color: hexColor,
+          hoverable: true,
+          hover_callback: function(atom, viewer, event, container) {
+            // Show the tooltip when hovering
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${event.clientX + 30}px`;  // Position tooltip near mouse cursor
+            tooltip.style.top = `${event.clientY + 500}px`;
+
+            console.log(tooltip.style.left);
+            console.log(tooltip.style.top);
+            console.log(event.clientX);
+
+            // Set the tooltip content with edge label
+            tooltip.innerHTML = `Edge Label: ${edge.label}`;
+          },
+          unhover_callback: function(atom, viewer, event, container) {
+            // Hide the tooltip when not hovering
+            tooltip.style.display = 'none';
+          }
          });
       });
 

@@ -575,8 +575,6 @@ def visualizeBetweenness():
     edge_list = correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=None,
                         frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
                         undirected=True)
-    
-    print(edge_list)
 
     with open("output.pdb", 'r') as file:
         file_content = file.read()
