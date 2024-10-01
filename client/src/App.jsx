@@ -79,20 +79,47 @@ function App() {
   };
 
   const fetch3DMol = async () => {
-    const response = await axios.post('http://127.0.0.1:5000/nglview');
-    const data = response.data;
+    axios.post('http://127.0.0.1:5000/py3dmol', {
+      headers: {
+          'Content-Type': 'multipart/form-data',
+      },
+    })
+    .then(response => {
+      const data = response.data;
 
-    let element = document.querySelector('#viewport');
-    let config = { backgroundColor: 'white' };
-    let viewer = $3Dmol.createViewer( element, config );
-    let pdbUri = '../../server/output.pdb';
-    console.log(data);
-    let v = viewer;
-    v.addModel( data, "pdb" );                       /* load data */
-    v.setStyle({}, {cartoon: {color: 'spectrum'}});  /* style all atoms */
-    v.zoomTo();                                      /* set camera */
-    v.render();                                      /* render scene */
-    v.zoom(1.2, 1000);                               /* slight zoom */
+      let universe = data.file_content;
+  
+      let element = document.querySelector('#viewport');
+      let config = { backgroundColor: 'white' };
+      let viewer = $3Dmol.createViewer( element, config );
+      viewer.addModel( universe, "pdb" );                       /* load data */
+
+      // Function to convert RGB float array to hex
+      const rgbToHex = (rgb) => {
+        // Ensure rgb is an array with 3 values [r, g, b]
+        if (rgb.length === 3) {
+          // Convert each RGB value to a two-digit hex string
+          const [r, g, b] = rgb.map(c => Math.round(c * 255));
+          // Format it as a single hex value
+          return `0x${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+        }
+        return '0x000000'; // default to black if invalid
+      };
+
+      data.edges.forEach(edge => {
+        //const hexColor = rgbToHex(edge.color);
+        viewer.addCylinder({
+          start: edge.coords.start, 
+          end: edge.coords.end,    
+          radius: edge.radius,
+          color: 'red'   
+        });
+      });
+      //viewer.setStyle({}, {cartoon: {color: 'spectrum'}});
+      viewer.zoomTo();                                      /* set camera */
+      viewer.render();                                      /* render scene */
+      viewer.zoom(1.2, 1000);                               /* slight zoom */
+    })
   };
 
   // Load external libraries

@@ -21,6 +21,7 @@ from collections import Counter
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import logging
 import EnergyCode
+import json
 
 app=Flask(__name__)
 application=app
@@ -55,10 +56,14 @@ def process_dat_file(file):
 
     return rows, cols, correlations
 
-@app.route('/nglview', methods=['POST'])
-def nglview():
-    ngl_content = EnergyCode.visualizeBetweenness()
-    return jsonify(ngl_content)
+@app.route('/py3dmol', methods=['POST'])
+def py3dmol():
+    #py3dmol_content = EnergyCode.visualizeBetweenness()
+
+    with open('view_data.json', 'r') as json_file:
+        py3dmol_content = json.load(json_file)
+
+    return jsonify(py3dmol_content)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

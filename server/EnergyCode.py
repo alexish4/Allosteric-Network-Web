@@ -23,6 +23,7 @@ import tempfile
 from io import StringIO
 from flask import jsonify
 import py3Dmol
+import json
 
 def visualizeBetweenness():
     energyDataDir='energy_topology'
@@ -567,22 +568,33 @@ def visualizeBetweenness():
     #Render the filtered interaction network using nglview with
     #the edge width and colormaps generated above
     struc=strucDict[list(strucDict.keys())[0]]
+    source_set = [int(res+1) for res in sourceSet]
+    target_set = [int(res+1) for res in targetSet]
 
     struc.atoms.write("output.pdb")
+    edge_list = correlation_data_utilities.drawProtCorrMat(protStruc=struc,corrMat=plotMat,ngViewOb=None,
+                        frame=0,colorsArray=edgeColors,radiiMat=radiiMat,
+                        undirected=True)
+    
+    print(edge_list)
 
     with open("output.pdb", 'r') as file:
         file_content = file.read()
 
-    return file_content
-    
+    view_data = {
+        'sourceSet': source_set,
+        'targetSet': target_set,
+        'file_content': file_content,
+        'edges': edge_list
+    }
 
-# Extract atoms and residues from MDAnalysis Universe
-def get_pdb_string(universe):
-    pdb_str = ""
-    for atom in universe.atoms:
-        pdb_str += f"ATOM  {atom.index+1:>5} {atom.name:<4} {atom.resname:<3} {atom.resid:>4}    {atom.position[0]:>8.3f}{atom.position[1]:>8.3f}{atom.position[2]:>8.3f}  1.00  0.00           {atom.element:<2}\n"
-    pdb_str += "END\n"
-    return pdb_str
+
+    # Save view_data to a JSON file
+    with open('view_data.json', 'w') as json_file:
+        json.dump(view_data, json_file)
+
+    return view_data
+    
 
 if __name__ == '__main__':
     visualizeBetweenness()
