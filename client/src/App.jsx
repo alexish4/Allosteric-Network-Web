@@ -92,9 +92,8 @@ function App() {
       let element = document.querySelector('#viewport');
       let config = { backgroundColor: 'white' };
       let viewer = $3Dmol.createViewer( element, config );
-      viewer.addModel( universe, "pdb" );                       /* load data */
+      viewer.addModel( universe, "pdb");  
 
-      // Function to convert RGB float array to hex
       const rgbToHex = (rgb) => {
         // Ensure rgb is an array with 3 values [r, g, b]
         if (rgb.length === 3) {
@@ -115,7 +114,10 @@ function App() {
           color: hexColor,
          });
       });
-      viewer.setStyle({}, {cartoon: {color: 'spectrum'}});
+
+      viewer.setStyle({}, {cartoon:{color:'pink'}});
+      viewer.setStyle({resi:['50']},{sphere:{color:'green', radius: 0.8}});
+      viewer.setStyle({resi:['433']},{sphere:{color:'red', radius: 0.8}});
       viewer.zoomTo();                                      /* set camera */
       viewer.render();                                      /* render scene */
       viewer.zoom(1.2, 1000);                               /* slight zoom */
