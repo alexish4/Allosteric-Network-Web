@@ -105,17 +105,17 @@ function App() {
         }
         return '0x000000'; // default to black if invalid
       };
-
+      console.log("Test");
       data.edges.forEach(edge => {
-        //const hexColor = rgbToHex(edge.color);
-        viewer.addCylinder({
-          start: edge.coords.start, 
-          end: edge.coords.end,    
+        const hexColor = rgbToHex(edge.color);
+        viewer.addCylinder(
+          {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
+          end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
           radius: edge.radius,
-          color: 'red'   
-        });
+          color: hexColor,
+         });
       });
-      //viewer.setStyle({}, {cartoon: {color: 'spectrum'}});
+      viewer.setStyle({}, {cartoon: {color: 'spectrum'}});
       viewer.zoomTo();                                      /* set camera */
       viewer.render();                                      /* render scene */
       viewer.zoom(1.2, 1000);                               /* slight zoom */
