@@ -124,8 +124,8 @@ function App() {
           hover_callback: function(atom, viewer, event, container) {
             // Show the tooltip when hovering
             tooltip.style.display = 'block';
-            tooltip.style.left = `${event.clientX + 30}px`;  // Position tooltip near mouse cursor
-            tooltip.style.top = `${event.clientY + 500}px`;
+            tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
+            tooltip.style.top = `${event.clientY + 600}px`;
 
             // Set the tooltip content with edge label
             tooltip.innerHTML = `Edge Label: ${edge.label}`;
@@ -143,19 +143,17 @@ function App() {
 
       viewer.setHoverable({}, true,
         function (atom, viewer, event, container) {
-            console.log('hover', atom);
-            if (!atom.label) {
-                atom.label = viewer.addLabel(atom.resn + "." + atom.resi, { position: atom, backgroundColor: 'mintcream', fontColor: 'black' });
-            }
+          if (!atom.label) {
+              atom.label = viewer.addLabel(atom.resn + "." + atom.resi, { position: atom, backgroundColor: 'mintcream', fontColor: 'black' });
+          }
         },
         function (atom) {
-            console.log('unhover', atom);
-            if (atom.label) {
-                viewer.removeLabel(atom.label);
-                delete atom.label;
-            }
+          if (atom.label) {
+              viewer.removeLabel(atom.label);
+              delete atom.label;
+          }
         }
-    );
+      );
       viewer.zoomTo();                                      /* set camera */
       viewer.render();                                      /* render scene */
       viewer.zoom(1.2, 1000);                               /* slight zoom */
