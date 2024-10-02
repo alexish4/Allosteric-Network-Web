@@ -127,10 +127,6 @@ function App() {
             tooltip.style.left = `${event.clientX + 30}px`;  // Position tooltip near mouse cursor
             tooltip.style.top = `${event.clientY + 500}px`;
 
-            console.log(tooltip.style.left);
-            console.log(tooltip.style.top);
-            console.log(event.clientX);
-
             // Set the tooltip content with edge label
             tooltip.innerHTML = `Edge Label: ${edge.label}`;
           },
@@ -141,9 +137,25 @@ function App() {
          });
       });
 
-      viewer.setStyle({}, {cartoon:{color:'pink'}});
+      viewer.setStyle({}, {cartoon:{color:'blue', opacity: 0.8}});
       viewer.setStyle({resi:['50']},{sphere:{color:'green', radius: 0.8}});
       viewer.setStyle({resi:['433']},{sphere:{color:'red', radius: 0.8}});
+
+      viewer.setHoverable({}, true,
+        function (atom, viewer, event, container) {
+            console.log('hover', atom);
+            if (!atom.label) {
+                atom.label = viewer.addLabel(atom.resn + "." + atom.resi, { position: atom, backgroundColor: 'mintcream', fontColor: 'black' });
+            }
+        },
+        function (atom) {
+            console.log('unhover', atom);
+            if (atom.label) {
+                viewer.removeLabel(atom.label);
+                delete atom.label;
+            }
+        }
+    );
       viewer.zoomTo();                                      /* set camera */
       viewer.render();                                      /* render scene */
       viewer.zoom(1.2, 1000);                               /* slight zoom */
