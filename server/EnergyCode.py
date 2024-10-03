@@ -386,6 +386,8 @@ def visualizeBetweenness():
     #                     undirected=True)
     # view
 
+    corrRadii = radiiMat
+
     #In order to apply current flow betweenness methods, we need one or more source
     #and target residues.
     #For IGPS, two well known interaction residues are LEU50 (Allosteric Ligand biniding pocket)
@@ -547,6 +549,32 @@ def visualizeBetweenness():
         get_chain_id(struc.residues[iRes]) + "_" + \
         str(get_residue_number(struc.residues[iRes])) \
         for iRes in np.flip(np.array(path),axis=0)])
+    
+    plotMat=np.array(np.abs(btwMat+btwMat.T))
+    #plotMat=plotMat*((plotMat)>btwCut)
+
+    print("Nedges=",len(np.nonzero(plotMat)[0]))
+
+    nzInds=np.nonzero(plotMat)
+
+    #Create a color map for edges based on log(abs(E_Interact.Mean))
+    tempCmap=matplotlib.cm.get_cmap('plasma',2048)
+    tempCmat=np.array(plotMat)
+    vMin=np.min(tempCmat)
+    vCenter=np.median(tempCmat[nzInds])
+    vMax=np.max(tempCmat)
+    cNorm=matplotlib.colors.TwoSlopeNorm(vmin=vMin,vcenter=vCenter,vmax=vMax)
+    #tempCmat[nzInds]=np.log(tempCmat[nzInds])
+    edgeColors=correlation_data_utilities.getCorrNetEdgeColors(
+        tempCmat,maskInds=nzInds,cmap=tempCmap,cNorm=cNorm)
+
+    #Compute widths for edges based on lob(abs(E_Interact.Mean))
+    #rMin and rMax set minimum and maximum edgewidths
+    #edgwidth will then interpolate linearly between those two
+    #bounds.
+    eMin=.0625
+    eMax=0.375
+    radiiMat=correlation_data_utilities.getCorrNetEdgeRadii(plotMat,maskInds=nzInds,eMin=eMin,eMax=eMax)
 
     CSS = """
     .output {

@@ -128,7 +128,7 @@ function App() {
             tooltip.style.top = `${event.clientY + 600}px`;
 
             // Set the tooltip content with edge label
-            tooltip.innerHTML = `Edge Label: ${edge.label}`;
+            tooltip.innerHTML = `Edge Label: ${edge.label}\nBetweenness: ${edge.radius}`;
           },
           unhover_callback: function(atom, viewer, event, container) {
             // Hide the tooltip when not hovering
@@ -137,7 +137,7 @@ function App() {
          });
       });
 
-      viewer.setStyle({}, {cartoon:{color:'blue', opacity: 0.8}});
+      viewer.setStyle({}, {cartoon:{color:'orange', opacity: 0.8}});
       viewer.setStyle({resi:['50']},{sphere:{color:'green', radius: 0.8}});
       viewer.setStyle({resi:['433']},{sphere:{color:'red', radius: 0.8}});
 
