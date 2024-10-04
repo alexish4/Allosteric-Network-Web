@@ -13,6 +13,7 @@ from collections import Counter
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import EnergyCode
 import Graph2D
+import SubtractedCorrelationMatrix
 import json
 
 app=Flask(__name__)
@@ -35,6 +36,11 @@ def py3dmol():
 def upload_file():
     graph_data = Graph2D.process_graph_data()
     return jsonify(graph_data)
+
+@app.route('/subtract', methods=['POST'])
+def subtracted_matrix():
+    plots = SubtractedCorrelationMatrix.get_plots()
+    return jsonify(plots)
 
 @app.route('/calculate', methods=['POST'])
 def compute_flow_betweenness():
