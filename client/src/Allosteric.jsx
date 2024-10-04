@@ -188,7 +188,7 @@ function Allosteric() {
 
 
   return (
-    <div className="App">
+    <div className="Allosteric">
       <h1>Current-Flow-Allostery</h1>
       <form id="upload-form" encType="multipart/form-data">
           <div className="form-group">
