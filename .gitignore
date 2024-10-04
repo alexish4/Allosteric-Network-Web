@@ -3,3 +3,7 @@ client/node_modules
 client/package.json
 client/package-lock.json
 *.pdb
+server/__pycache__/
+server/distance_topology/
+server/energy_topology/
+server/view_data.json
