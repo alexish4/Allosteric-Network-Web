@@ -5,6 +5,10 @@ import Home from './Home';
 import Allosteric from './Allosteric'; 
 import './App.css';
 import axios from 'axios';
+import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
+    console.log($3Dmol);
+    //can do things with $3Dmol here
+    });
 
 function Subtract() {
 
@@ -49,11 +53,12 @@ function Subtract() {
     return (
     <div>
         <h1>PDB File Uploader</h1>
+        <h3>Please Submit 2 PDB Files:</h3>
         <input type="file" onChange={handlePdbFile1Change} />
         <input type="file" onChange={handlePdbFile2Change} />
         <button onClick={handleSubmit}>Submit</button>
-        {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" />}
-        {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" />}
+        {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" className="centered-image" />}
+        {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" className="centered-image" />}
     </div>
     );
 }
