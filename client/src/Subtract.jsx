@@ -41,9 +41,50 @@ function Subtract() {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        const plots = response.data;
-        setPlot1(plots.calculated_matrix_image);
-        setPlot2(plots.subtracted_distance_matrix_image);
+        const data = response.data;
+
+        let universe = data.pdb_content;
+        let element = document.querySelector('#viewport');
+        let config = { backgroundColor: 'white' };
+        let viewer = $3Dmol.createViewer( element, config );
+        viewer.addModel( universe, "pdb");  
+
+        const tooltip = document.createElement('div');
+        tooltip.style.position = 'absolute';
+        tooltip.style.backgroundColor = '#fff';
+        tooltip.style.border = '1px solid #ccc';
+        tooltip.style.padding = '5px';
+        tooltip.style.display = 'none';  // Hide by default
+        document.body.appendChild(tooltip);
+
+        data.edges.forEach(edge => {
+            viewer.addCylinder(
+              {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
+              end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
+              radius: 0.5,
+              color: "blue",
+              hoverable: true,
+              hover_callback: function(atom, viewer, event, container) {
+                // Show the tooltip when hovering
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
+                tooltip.style.top = `${event.clientY}px`;
+
+                // Set the tooltip content with edge label
+                tooltip.innerHTML = `Edge Label: ${edge.label}`;
+              },
+              unhover_callback: function(atom, viewer, event, container) {
+                // Hide the tooltip when not hovering
+                tooltip.style.display = 'none';
+              }
+             });
+        });
+
+        viewer.setStyle({}, {cartoon:{color:'orange', opacity: 0.8}});
+        viewer.zoomTo();                                      /* set camera */
+        viewer.render();                                      /* render scene */
+        viewer.zoom(1.2, 1000);   
+
         } catch (error) {
         console.error('Error:', error);
         alert('An error occurred while processing the PDB files.');
@@ -59,6 +100,7 @@ function Subtract() {
         <button onClick={handleSubmit}>Submit</button>
         {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" className="centered-image" />}
         {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" className="centered-image" />}
+        <div id="viewport" class="mol-container"></div>
     </div>
     );
 }
