@@ -81,12 +81,15 @@ def subtract_overlapping_regions(matrix1, matrix2):
 
 def create_edgelist_from_mda_universe(residue_pairs, residue_dictionary):
     global RESIDUE_NAME, X, Y, Z
+    print(RESIDUE_NAME, X, Y, Z)
 
     edge_list = []
 
-    for resID1, resID2 in residue_pairs:
-        residue1 = residue_dictionary.get(resID1)
-        residue2 = residue_dictionary.get(resID2)
+    for resID1, chainID1, resID2 , chainID2 in residue_pairs:
+        residue1 = residue_dictionary.get((resID1, chainID1))
+        residue2 = residue_dictionary.get((resID2, chainID2))
+
+        print(residue1)
         
         # Use MDAnalysis to calculate the center of mass for each residue
         crd1 = {residue1[X], residue1[Y], residue1[Z]}
@@ -112,14 +115,16 @@ def create_edgelist_from_mda_universe(residue_pairs, residue_dictionary):
 
         edge_list.append(edge_data)
     print(len(edge_list), " is length of edge list")
-    return edge_list[:10000]
+    return edge_list
     
 def create_residue_pairs_list(csv_file):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
-    # Extract the relevant columns: ResidueID1 and ResidueID2
-    residue_pairs = df[['ResidueID1', 'ResidueID2']].values.tolist()
+    # Using 3A as cutoff
+    filtered_df = df.loc[df['Distance'] >= 7.0]
+
+    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].values.tolist()
     
     return residue_pairs
 
@@ -135,13 +140,14 @@ def create_res_dictionary(csv_file):
         for row in reader:
             # Extract relevant information from each row
             residue_id = int(row[3])  # Residue ID
+            chain_id = row[4]
             residue_name = row[2]      # Residue Name
             x = float(row[5])          # X coordinate
             y = float(row[6])          # Y coordinate
             z = float(row[7])          # Z coordinate
 
             # Store the values in the dictionary
-            residue_dict[residue_id] = (residue_name, x, y, z)
+            residue_dict[(residue_id, chain_id)] = (residue_name, x, y, z)
     return residue_dict
 
 
@@ -156,9 +162,9 @@ def get_plots():
 
     cb_distance_matrixA = calculate_cb_distance_matrix(pdb_file1_path)
 
-    # residue_pairs = create_residue_pairs_list("test.csv")
-    # residue_dictionary = create_res_dictionary("WT_CB_distance_pairs.csv")
-    # edge_list = create_edgelist_from_mda_universe(residue_pairs, residue_dictionary)
+    residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv")
+    residue_dictionary = create_res_dictionary("WT_CB_distance_pairs.csv")
+    edge_list = create_edgelist_from_mda_universe(residue_pairs, residue_dictionary)
 
     ## checking purpose
     print (np.shape(cb_distance_matrixA))
@@ -253,8 +259,8 @@ def get_plots():
     plots = {
         'calculated_matrix_image' : calculated_matrix_image,
         'subtracted_distance_matrix_image' : subtracted_distance_matrix_image,
-        'pdb_content' : pdb_content
-        # 'edges' : edge_list
+        'pdb_content' : pdb_content,
+        'edges' : edge_list
     }
 
     return plots

@@ -53,50 +53,50 @@ function Subtract() {
         let viewer = $3Dmol.createViewer( element, config );
         viewer.addModel( universe, "pdb");  
 
-        // const tooltip = document.createElement('div');
-        // tooltip.style.position = 'absolute';
-        // tooltip.style.backgroundColor = '#fff';
-        // tooltip.style.border = '1px solid #ccc';
-        // tooltip.style.padding = '5px';
-        // tooltip.style.display = 'none';  // Hide by default
-        // document.body.appendChild(tooltip);
+        const tooltip = document.createElement('div');
+        tooltip.style.position = 'absolute';
+        tooltip.style.backgroundColor = '#fff';
+        tooltip.style.border = '1px solid #ccc';
+        tooltip.style.padding = '5px';
+        tooltip.style.display = 'none';  // Hide by default
+        document.body.appendChild(tooltip);
 
-        // console.log("Test 2");
+        console.log("Test 2");
 
-        // let index = 0;
+        let index = 0;
 
-        // data.edges.forEach(edge => {
-        //     if(index % 1000 === 0) {
-        //         console.log("1000");
-        //     }
+        data.edges.forEach(edge => {
+            if(index % 1000 === 0) {
+                console.log("1000");
+            }
             
-        //     viewer.addCylinder(
-        //       {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
-        //       end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
-        //       radius: 0.5,
-        //       color: "blue",
-        //       hoverable: true,
-        //       hover_callback: function(atom, viewer, event, container) {
-        //         // Show the tooltip when hovering
-        //         tooltip.style.display = 'block';
-        //         tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
-        //         tooltip.style.top = `${event.clientY + 600}px`;
+            viewer.addCylinder(
+              {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
+              end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
+              radius: 0.5,
+              color: "blue",
+              hoverable: true,
+              hover_callback: function(atom, viewer, event, container) {
+                // Show the tooltip when hovering
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
+                tooltip.style.top = `${event.clientY + 600}px`;
 
-        //         // Set the tooltip content with edge label
-        //         tooltip.innerHTML = `Edge Label: ${edge.label}`;
-        //       },
-        //       unhover_callback: function(atom, viewer, event, container) {
-        //         // Hide the tooltip when not hovering
-        //         tooltip.style.display = 'none';
-        //       }
-        //      });
-        //      index++;
-        // });
+                // Set the tooltip content with edge label
+                tooltip.innerHTML = `Edge Label: ${edge.label}`;
+              },
+              unhover_callback: function(atom, viewer, event, container) {
+                // Hide the tooltip when not hovering
+                tooltip.style.display = 'none';
+              }
+             });
+             index++;
+        });
 
-        viewer.setStyle({chain:'A'}, {cartoon:{color:'orange', opacity: 0.8}});
-        viewer.setStyle({chain:'B'}, {cartoon:{color:'blue', opacity: 0.8}});
-        viewer.setStyle({chain:'C'}, {cartoon:{color:'green', opacity: 0.8}});
-        viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow', opacity: 0.8}});
+        viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});
+        viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
+        viewer.setStyle({chain:'C'}, {cartoon:{color:'green'}});
+        viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow'}});
         viewer.zoomTo();                                      /* set camera */
         viewer.render();                                      /* render scene */
         viewer.zoom(1.2, 1000);   
