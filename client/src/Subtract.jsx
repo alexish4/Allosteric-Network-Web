@@ -44,8 +44,8 @@ function Subtract() {
         });
         const data = response.data;
         const plots = response.data;
-        // setPlot1(plots.calculated_matrix_image);
-        // setPlot2(plots.subtracted_distance_matrix_image);
+        setPlot1(plots.calculated_matrix_image);
+        setPlot2(plots.subtracted_distance_matrix_image);
 
         let universe = data.pdb_content;
         let element = document.querySelector('#viewport');
@@ -119,8 +119,8 @@ function Subtract() {
         <input type="file" onChange={handlePdbFile1Change} />
         <input type="file" onChange={handlePdbFile2Change} />
         <button onClick={handleSubmit}>Submit</button>
-        {/* {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" className="centered-image" />}
-        {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" className="centered-image" />} */}
+        {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" className="centered-image" />}
+        {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" className="centered-image" />}
         <div id="viewport" class="mol-container"></div>
     </div>
     );

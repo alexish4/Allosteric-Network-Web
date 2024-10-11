@@ -39,8 +39,8 @@ def upload_file():
 
 @app.route('/subtract', methods=['POST'])
 def subtracted_matrix():
-    plots = SubtractedCorrelationMatrix.get_plots()
-    return jsonify(plots)
+    plots_and_protein = SubtractedCorrelationMatrix.get_plots_and_protein_structure()
+    return jsonify(plots_and_protein)
 
 @app.route('/calculate', methods=['POST'])
 def compute_flow_betweenness():
