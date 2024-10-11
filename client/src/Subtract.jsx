@@ -14,8 +14,15 @@ function Subtract() {
 
     const [pdbFile1, setPdbFile1] = useState(null);
     const [pdbFile2, setPdbFile2] = useState(null);
-    const [plot1, setPlot1] = useState(null);
-    const [plot2, setPlot2] = useState(null);
+    const [subtractionPlot, setsubtractionPlot] = useState(null);
+    const [filteredPlot, setfilteredPlot] = useState(null);
+    const [distributionPlot, setdistributionPlot] = useState(null);
+    const [activeTab, setActiveTab] = useState(0);
+
+    // Function to handle tab switching
+    const switchTab = (tabIndex) => {
+        setActiveTab(tabIndex);
+    };
 
     const handlePdbFile1Change = (event) => {
         setPdbFile1(event.target.files[0]);
@@ -44,8 +51,9 @@ function Subtract() {
         });
         const data = response.data;
         const plots = response.data;
-        setPlot1(plots.calculated_matrix_image);
-        setPlot2(plots.subtracted_distance_matrix_image);
+        setsubtractionPlot(plots.calculated_matrix_image);
+        setfilteredPlot(plots.subtracted_distance_matrix_image);
+        setdistributionPlot(plots.distribution_graph);
 
         let universe = data.pdb_content;
         let element = document.querySelector('#viewport');
@@ -119,9 +127,26 @@ function Subtract() {
         <input type="file" onChange={handlePdbFile1Change} />
         <input type="file" onChange={handlePdbFile2Change} />
         <button onClick={handleSubmit}>Submit</button>
-        {plot1 && <img src={`data:image/png;base64,${plot1}`} alt="Calculated Matrix" className="centered-image" />}
-        {plot2 && <img src={`data:image/png;base64,${plot2}`} alt="Subtracted Distance Matrix" className="centered-image" />}
-        <div id="viewport" class="mol-container"></div>
+
+        <div className="tab-navigation">
+            <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Subtract Plot</button>
+            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Filtered Matrix</button>
+            <button onClick={() => switchTab(2)} className={activeTab === 2 ? 'active-tab' : ''}>Distribution Graph</button>
+        </div>
+
+        <div className="tab-content">
+            {activeTab === 0 && subtractionPlot && (
+                <img src={`data:image/png;base64,${subtractionPlot}`} alt="Subtracted Matrix" className="centered-image" />
+            )}
+            {activeTab === 1 && filteredPlot && (
+                <img src={`data:image/png;base64,${filteredPlot}`} alt="Filtered Matrix" className="centered-image" />
+            )}
+            {activeTab === 2 && distributionPlot && (
+                <img src={`data:image/png;base64,${distributionPlot}`} alt="Distribution Graph" className="centered-image" />
+            )}
+        </div>
+
+        <div id="viewport" className="mol-container"></div>
     </div>
     );
 }
