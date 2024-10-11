@@ -61,21 +61,14 @@ function Subtract() {
         tooltip.style.display = 'none';  // Hide by default
         document.body.appendChild(tooltip);
 
-        console.log("Test 2");
-
-        let index = 0;
-
         data.edges.forEach(edge => {
-            if(index % 1000 === 0) {
-                console.log("1000");
-            }
-            
             viewer.addCylinder(
               {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
               end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
               radius: 0.5,
               color: "blue",
               hoverable: true,
+              opacity: 0.9,
               hover_callback: function(atom, viewer, event, container) {
                 // Show the tooltip when hovering
                 tooltip.style.display = 'block';
@@ -90,7 +83,19 @@ function Subtract() {
                 tooltip.style.display = 'none';
               }
              });
-             index++;
+        });
+
+        const model = viewer.getModel();
+
+        // Get all atoms in the model
+        const atoms = model.selectedAtoms({});
+
+        // Filter atoms by residue number and chain ID
+        const residueAtoms = atoms.filter(atom => atom.resi === 543 && atom.chain === "A");
+
+        // Print the coordinates of the filtered atoms
+        residueAtoms.forEach(atom => {
+            console.log(`Atom: ${atom.atom}, Chain: ${atom.chain}, Residue: ${atom.resi}, x: ${atom.x}, y: ${atom.y}, z: ${atom.z}`);
         });
 
         viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});

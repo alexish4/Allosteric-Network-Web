@@ -79,30 +79,32 @@ def subtract_overlapping_regions(matrix1, matrix2):
     
     return result
 
-def create_edgelist_from_mda_universe(residue_pairs, residue_dictionary):
+def create_edgelist_from_mda_universe(pubStrucUniverse, residue_pairs, residue_dictionary):
     global RESIDUE_NAME, X, Y, Z
-    print(RESIDUE_NAME, X, Y, Z)
 
     edge_list = []
 
     for resID1, chainID1, resID2 , chainID2 in residue_pairs:
-        residue1 = residue_dictionary.get((resID1, chainID1))
-        residue2 = residue_dictionary.get((resID2, chainID2))
+        residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
+        residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
+        
 
-        print(residue1)
-        
         # Use MDAnalysis to calculate the center of mass for each residue
-        crd1 = {residue1[X], residue1[Y], residue1[Z]}
-        crd2 = {residue2[X], residue2[Y], residue2[Z]}
+        crd1 = residue1.center_of_mass()
+        crd2 = residue2.center_of_mass()
+
+        if resID1 == 543 and chainID1 == "A":
+            print(crd1)
+            print(crd2)
+
+        resname1 = residue1.residues[0].resname
+        resid1 = int(residue1.residues[0].resid)
         
-        resname1 = residue1[RESIDUE_NAME]
-        resid1 = resID1
-        
-        resname2 = residue2[RESIDUE_NAME]
-        resid2 = resID2
+        resname2 = residue2.residues[0].resname
+        resid2 = int(residue2.residues[0].resid)
         
         # Create an edge label based on the residue names and IDs
-        edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1-1}-{resID2-1})'
+        edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
         #converting to python types instead of numpy types so we can jsonify
         edge_data = {
@@ -122,7 +124,7 @@ def create_residue_pairs_list(csv_file):
     df = pd.read_csv(csv_file)
     
     # Using 3A as cutoff
-    filtered_df = df.loc[df['Distance'] >= 7.0]
+    filtered_df = df.loc[df['Distance'] >= 6.0]
 
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].values.tolist()
     
@@ -161,10 +163,11 @@ def get_plots():
     pdb_file2.save(pdb_file2_path)
 
     cb_distance_matrixA = calculate_cb_distance_matrix(pdb_file1_path)
+    u = mda.Universe(pdb_file1_path)
 
     residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv")
     residue_dictionary = create_res_dictionary("WT_CB_distance_pairs.csv")
-    edge_list = create_edgelist_from_mda_universe(residue_pairs, residue_dictionary)
+    edge_list = create_edgelist_from_mda_universe(u, residue_pairs, residue_dictionary)
 
     ## checking purpose
     print (np.shape(cb_distance_matrixA))
@@ -248,7 +251,7 @@ def get_plots():
     buffer.close()
     plt.close()
 
-    with open(pdb_file2_path, 'r') as file:
+    with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
 
     # view_data = {
