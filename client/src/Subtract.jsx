@@ -18,6 +18,13 @@ function Subtract() {
     const [filteredPlot, setfilteredPlot] = useState(null);
     const [distributionPlot, setdistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
+    const [inputValue, setInputValue] = useState('');
+
+    // Handle button click
+    const handleButtonClick = () => {
+      console.log('Button clicked with input:', inputValue);
+      // Add your logic here (e.g., form submission or state update)
+    };
 
     // Function to handle tab switching
     const switchTab = (tabIndex) => {
@@ -146,7 +153,20 @@ function Subtract() {
             )}
         </div>
 
-        <div id="viewport" className="mol-container"></div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div id="viewport" className="mol-container"></div>
+            <input
+                type="number" // Set type to number for double input
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                step="0.01" // Set step to allow decimal values
+                style={{ marginLeft: '10px', padding: '5px' }}
+                placeholder="Enter a number" // Optional placeholder
+            />
+            <button onClick={handleButtonClick} style={{ marginLeft: '10px', padding: '5px' }}>
+                Submit
+            </button>
+        </div>
     </div>
     );
 }
