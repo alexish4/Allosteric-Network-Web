@@ -80,6 +80,37 @@ def compute_pairwise_distances(df):
 
     return distance_df
 
+def recalculate_from_new_cutoff_value():
+    pdb_file1 = request.files['pdb_file1']
+    pdb_file2 = request.files['pdb_file2']
+
+    energy_value = float(request.form['energy'])
+
+    pdb_file1_path = 'pdb_file1.pdb'
+    pdb_file2_path = 'pdb_file2.pdb'
+    pdb_file1.save(pdb_file1_path)
+    pdb_file2.save(pdb_file2_path)
+
+    u = mda.Universe(pdb_file1_path)
+
+    residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv", energy_value)
+    edge_list = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+
+    with open(pdb_file1_path, 'r') as file:
+        pdb_content = file.read()
+
+    # view_data = {
+    #     'file_content': file_content,
+    #     'edges': edge_list
+    # }
+
+    structure = {
+        'pdb_content' : pdb_content,
+        'edges' : edge_list
+    }
+
+    return structure
+
 def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
     global RESIDUE_NAME, X, Y, Z
 
@@ -123,12 +154,12 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
     print(len(edge_list), " is length of edge list")
     return edge_list
     
-def create_residue_pairs_list(csv_file):
+def create_residue_pairs_list(csv_file, distance = 6.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
     # Determine cutoff
-    filtered_df = df.loc[df['Distance'] >= 6.0]
+    filtered_df = df.loc[df['Distance'] >= distance]
 
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].values.tolist()
     

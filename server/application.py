@@ -42,6 +42,11 @@ def subtracted_matrix():
     plots_and_protein = SubtractedCorrelationMatrix.get_plots_and_protein_structure()
     return jsonify(plots_and_protein)
 
+@app.route('/rerender', methods=['POST'])
+def rerender():
+    structure = SubtractedCorrelationMatrix.recalculate_from_new_cutoff_value()
+    return jsonify(structure)
+
 @app.route('/calculate', methods=['POST'])
 def compute_flow_betweenness():
     global adj_matrix

@@ -21,9 +21,32 @@ function Subtract() {
     const [inputValue, setInputValue] = useState('');
 
     // Handle button click
-    const handleButtonClick = () => {
+    const handleNewEnergyValue = async () => {
       console.log('Button clicked with input:', inputValue);
-      // Add your logic here (e.g., form submission or state update)
+      if (!pdbFile1 || !pdbFile2) {
+        alert('Please select both PDB files.');
+        return;
+        }
+
+        const formData = new FormData();
+        formData.append('pdb_file1', pdbFile1);
+        formData.append('pdb_file2', pdbFile2);
+        formData.append('energy', inputValue);
+
+        console.log("Test")
+        try {
+            const response = await axios.post('http://127.0.0.1:5000/rerender', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            const data = response.data;
+            render3dmol(data);
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while processing the PDB files.');
+        }
     };
 
     // Function to handle tab switching
@@ -51,17 +74,26 @@ function Subtract() {
 
         console.log("Test")
         try {
-        const response = await axios.post('http://127.0.0.1:5000/subtract', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-        const data = response.data;
-        const plots = response.data;
-        setsubtractionPlot(plots.calculated_matrix_image);
-        setfilteredPlot(plots.subtracted_distance_matrix_image);
-        setdistributionPlot(plots.distribution_graph);
+            const response = await axios.post('http://127.0.0.1:5000/subtract', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            const data = response.data;
+            const plots = response.data;
+            setsubtractionPlot(plots.calculated_matrix_image);
+            setfilteredPlot(plots.subtracted_distance_matrix_image);
+            setdistributionPlot(plots.distribution_graph);
 
+            render3dmol(data);
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while processing the PDB files.');
+        }
+    };
+
+    const render3dmol = async (data) => {
         let universe = data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
@@ -120,12 +152,7 @@ function Subtract() {
         viewer.zoomTo();                                      /* set camera */
         viewer.render();                                      /* render scene */
         viewer.zoom(1.2, 1000);   
-
-        } catch (error) {
-        console.error('Error:', error);
-        alert('An error occurred while processing the PDB files.');
-        }
-    };
+    }
 
     return (
     <div>
@@ -163,7 +190,7 @@ function Subtract() {
                 style={{ marginLeft: '10px', padding: '5px' }}
                 placeholder="Enter a number" // Optional placeholder
             />
-            <button onClick={handleButtonClick} style={{ marginLeft: '10px', padding: '5px' }}>
+            <button onClick={handleNewEnergyValue} style={{ marginLeft: '10px', padding: '5px' }}>
                 Submit
             </button>
         </div>
