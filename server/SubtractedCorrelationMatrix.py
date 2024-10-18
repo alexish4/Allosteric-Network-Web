@@ -117,8 +117,8 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv", energy_value)
-    edge_list = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+    residue_pairs = create_residue_pairs_list("residue.csv", energy_value)
+    edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
@@ -136,8 +136,6 @@ def recalculate_from_new_cutoff_value():
     return structure
 
 def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
-    global RESIDUE_NAME, X, Y, Z
-
     edge_list = []
 
     for pair in residue_pairs:
@@ -145,6 +143,47 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
         chainID1 = pair['ChainID1']
         resID2 = pair['ResidueID2']
         chainID2 = pair['ChainID2']
+        residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
+        residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
+
+        empty_residue = False
+
+        # Check if the atom groups are empty by their length
+        if len(residue1) == 0 or len(residue2) == 0:
+            empty_residue = True
+            print("test if empty")
+
+        if not empty_residue:
+            # Use MDAnalysis to calculate the center of mass for each residue
+            crd1 = residue1.center_of_mass()
+            crd2 = residue2.center_of_mass()
+
+            resname1 = residue1.residues[0].resname
+            resid1 = int(residue1.residues[0].resid)
+            
+            resname2 = residue2.residues[0].resname
+            resid2 = int(residue2.residues[0].resid)
+            
+            # Create an edge label based on the residue names and IDs
+            edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+
+            #converting to python types instead of numpy types so we can jsonify
+            edge_data = {
+                'label': edgeLabel,
+                'coords': {
+                    'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
+                    'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
+                }
+            }
+
+            edge_list.append(edge_data)
+    print(len(edge_list), " is length of edge list")
+    return edge_list
+
+def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
+    edge_list = []
+
+    for resID1, chainID1, resID2 , chainID2 in residue_pairs:
         residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
@@ -208,6 +247,8 @@ def residue_pairs_for_sub(hash, sub, csv_file, lower_bound = 6.0, upper_bound = 
     residue_pairs['Distance'] = residue_pairs.apply(
         lambda row: sub.loc[row['index 1'], row['index 2']], axis=1
     )
+
+    residue_pairs.to_csv("residue.csv", index=False)
 
     # Filter rows where distance is within bounds
     filtered_pairs = residue_pairs[
