@@ -140,7 +140,7 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
 
     edge_list = []
 
-    for resID1, chainID1, resID2 , chainID2 in residue_pairs[:10]:
+    for resID1, chainID1, resID2 , chainID2 in residue_pairs:
         residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
@@ -178,28 +178,43 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
     print(len(edge_list), " is length of edge list")
     return edge_list
 
-def residue_pairs_for_sub(hash, sub):
-    # filtered_sub = sub.where((sub >= 3.0) & (sub <= 8.0), 0)
-    # residue_pairs = []
-    # for index, row in filtered_sub.iterrows():
-    #     for col_index, value in row.items():
-    #         print(f"Row {index}, Column {col_index}: {value}")
-    #         if not math.isnan(value):
-    #             resID1, chainID1 = hash.get(index)
-    #             resID2, chainID2 = hash.get(col_index)
-    #             residue_pairs.append(resID1, chainID1, resID2, chainID2)
-    # return residue_pairs
-    # Filter the sub DataFrame and stack it to get pairs of indices with non-zero values
-    filtered_sub = sub[(sub >= 3.0) & (sub <= 8.0)].stack()
-    
-    # List comprehension to extract residue pairs using the hashmap
-    residue_pairs = [
-        (hash.get(index1) + hash.get(index2))  # Combine tuples to create a flat structure
-        for (index1, index2), value in filtered_sub.items()
-        if hash.get(index1) and hash.get(index2)  # Ensure both indices exist in hashmap
+def residue_pairs_for_sub(hash, sub, csv_file, lower_bound = 6.0, upper_bound = 100.0):
+    # Read the CSV file
+    df = pd.read_csv(csv_file)
+
+    # Extract residue pairs columns
+    residue_pairs = df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']]
+
+    # Create 'Index1' and 'Index2' by mapping the hash_map values in a vectorized manner
+    residue_pairs['index 1'] = residue_pairs.apply(
+        lambda row: hash.get((row['ResidueID1'], row['ChainID1'])), axis=1
+    )
+    residue_pairs['index 2'] = residue_pairs.apply(
+        lambda row: hash.get((row['ResidueID2'], row['ChainID2'])), axis=1
+    )
+
+    # Drop rows where 'Index1' or 'Index2' are None (unmatched in the hash map)
+    residue_pairs.dropna(subset=['index 1', 'index 2'], inplace=True)
+
+    # Convert 'Index1' and 'Index2' to integers for use in distance lookup
+    residue_pairs['index 1'] = residue_pairs['index 1'].astype(int)
+    residue_pairs['index 2'] = residue_pairs['index 2'].astype(int)
+
+    # Use vectorized lookup for distances from the 'sub' matrix
+    residue_pairs['Distance'] = residue_pairs.apply(
+        lambda row: sub.loc[row['index 1'], row['index 2']], axis=1
+    )
+
+    # Filter rows where distance is within bounds
+    filtered_pairs = residue_pairs[
+        (residue_pairs['Distance'] >= lower_bound) & (residue_pairs['Distance'] <= upper_bound)
     ]
-    print(len(residue_pairs), " is length of residue pairs")
-    return residue_pairs
+
+    # Select and return the filtered columns
+    filtered_result = filtered_pairs[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].to_dict(orient='records')
+
+    print(len(filtered_result), " is length of filtered pairs")
+    return filtered_result
 
 def create_residue_pairs_list(csv_file, distance = 6.0):
     # Load the CSV file
@@ -271,6 +286,12 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     hashmap_cb1 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb1.iterrows()}
     hashmap_cb2 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb2.iterrows()}
 
+    reverse_hashmap_cb1 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb1.iterrows()}
+    reverse_hashmap_cb2 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb2.iterrows()}
+
+    new_index = reverse_hashmap_cb1.get((94, 'A'))
+    print("New index is ", new_index)
+
     matrixA=compute_pairwise_distances(filtered_cb1)
     print(matrixA.head(), " is matrix a head")
     matrixB=compute_pairwise_distances(filtered_cb2)
@@ -283,7 +304,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     new_universe = mda.Universe("updated_structure.pdb")  
 
     #get residue pairs for edgelist
-    residue_pairs = residue_pairs_for_sub(hashmap_cb1, sub)
+    residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
     #new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     print(sub.head(), " is sub head")
