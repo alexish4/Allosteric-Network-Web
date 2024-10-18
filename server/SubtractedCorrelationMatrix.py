@@ -17,7 +17,9 @@ from Bio.PDB import PDBParser, Select
 import base64
 import pandas as pd
 import csv
+import math
 
+#Add original atom index to be able to do new matrix
 def pdb_to_dataframe(pdb_file):
     """
     Load a PDB file using MDAnalysis and convert key atom information to a pandas DataFrame.
@@ -80,6 +82,28 @@ def compute_pairwise_distances(df):
 
     return distance_df
 
+# Function to update the universe atom coordinates
+def update_coordinates_in_universe(u, df, sub, hashmap_cb1):
+    # Scale down shifts to prevent large movements
+    shift_scale = 0.1
+
+    # Go through each index in the distance matrix
+    for new_index in sub.index:
+        # Get the corresponding Residue ID and Chain ID using the hashmap
+        residue_id, chain_id = hashmap_cb1[new_index]
+
+        # Select all atoms for this residue in the MDAnalysis universe
+        residue_atoms = u.select_atoms(f"resid {residue_id} and segid {chain_id}")
+        
+        # Ensure we have selected atoms
+        if len(residue_atoms) > 0:
+            # Calculate the shift for this residue based on the subtracted matrix
+            shift_vector = np.sum(sub.loc[new_index].values) * shift_scale
+            
+            # Apply the shift equally to all atoms in this residue
+            # This part assumes the shift vector affects the X, Y, Z directions equally
+            residue_atoms.positions += np.array([shift_vector, shift_vector, shift_vector])
+
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
@@ -116,7 +140,7 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
 
     edge_list = []
 
-    for resID1, chainID1, resID2 , chainID2 in residue_pairs:
+    for resID1, chainID1, resID2 , chainID2 in residue_pairs[:10]:
         residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
@@ -153,7 +177,30 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
             edge_list.append(edge_data)
     print(len(edge_list), " is length of edge list")
     return edge_list
+
+def residue_pairs_for_sub(hash, sub):
+    # filtered_sub = sub.where((sub >= 3.0) & (sub <= 8.0), 0)
+    # residue_pairs = []
+    # for index, row in filtered_sub.iterrows():
+    #     for col_index, value in row.items():
+    #         print(f"Row {index}, Column {col_index}: {value}")
+    #         if not math.isnan(value):
+    #             resID1, chainID1 = hash.get(index)
+    #             resID2, chainID2 = hash.get(col_index)
+    #             residue_pairs.append(resID1, chainID1, resID2, chainID2)
+    # return residue_pairs
+    # Filter the sub DataFrame and stack it to get pairs of indices with non-zero values
+    filtered_sub = sub[(sub >= 3.0) & (sub <= 8.0)].stack()
     
+    # List comprehension to extract residue pairs using the hashmap
+    residue_pairs = [
+        (hash.get(index1) + hash.get(index2))  # Combine tuples to create a flat structure
+        for (index1, index2), value in filtered_sub.items()
+        if hash.get(index1) and hash.get(index2)  # Ensure both indices exist in hashmap
+    ]
+    print(len(residue_pairs), " is length of residue pairs")
+    return residue_pairs
+
 def create_residue_pairs_list(csv_file, distance = 6.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
@@ -172,6 +219,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # sys1['System']='WT'
     sys1 = sys1.reset_index()
     print(sys1.head())  
+
+    u = mda.Universe(pdb_file1)
 
     # Load your second PDB file 
     pdb_file2 = pdb_file2_path 
@@ -208,13 +257,36 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     print("\nFiltered df2 with common residue IDs:")
     print(filtered_df2)
 
-    # re-index
+    print(filtered_cb1['Residue ID'].head(), " is head")
+
+    # re-index, RESIDUE ID and CHAIN ID ARE STILL THE SAME VALUES AFTER THIS
     filtered_cb1['NewIndex']=range(0,len(filtered_cb1))
     filtered_cb2['NewIndex']=range(0,len(filtered_cb2))
 
+    print(len(filtered_cb1), " is length of f_cb1")
+
+    print(filtered_cb1['Residue ID'].head(), " is head. Test")
+
+    # Create hashmaps for filtered_cb1 and filtered_cb2 to return Residue ID and Chain ID from NewIndex
+    hashmap_cb1 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb1.iterrows()}
+    hashmap_cb2 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb2.iterrows()}
+
     matrixA=compute_pairwise_distances(filtered_cb1)
+    print(matrixA.head(), " is matrix a head")
     matrixB=compute_pairwise_distances(filtered_cb2)
     sub=np.abs(matrixA-matrixB)
+
+    # Apply the updates based on the subtracted distances
+    update_coordinates_in_universe(u, filtered_cb1, sub, hashmap_cb1) 
+    u.atoms.write("updated_structure.pdb")
+
+    new_universe = mda.Universe("updated_structure.pdb")  
+
+    #get residue pairs for edgelist
+    residue_pairs = residue_pairs_for_sub(hashmap_cb1, sub)
+    #new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+
+    print(sub.head(), " is sub head")
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
@@ -262,6 +334,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # Set all values below or equal to 5 to NaN (or 0 if you prefer)
     sub_thresholded = np.where((sub > threshold_min) & (sub < threshold_max), sub, np.nan)  # Use np.nan for better visual distinction in the heatmap
 
+    print(sub_thresholded, " is thresh")
+
     num_residues = sub.shape[0]
     print ("number residue:",num_residues)
     # Plot the thresholded matrix
@@ -294,6 +368,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # filter distance within limitation 
     filter_distance=unique_pairs.query('Distance >3 & Distance <8')
+    print(filter_distance.head(), " is head")
+    print(filter_distance.tail(), " is tail")
     #print (filter_distance)
     # Sort by distance to get the top 5 largest values
     top_5 = filter_distance.nlargest(5, 'Distance')
@@ -323,7 +399,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     #save to a dataframe table
     top_5.to_csv('Top5_distance_pairs.csv',index=False)
 
-    return calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph
+    return calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph#, new_edgelist
 
 
 def get_plots_and_protein_structure():
@@ -338,8 +414,10 @@ def get_plots_and_protein_structure():
     calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
 
     u = mda.Universe(pdb_file1_path)
+    print(len(u.atoms), " is length of atoms")
 
     residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv")
+    print(residue_pairs[:10], " are first 10 resi`due pairs from csv")
     edge_list = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:

@@ -33,7 +33,6 @@ function Subtract() {
         formData.append('pdb_file2', pdbFile2);
         formData.append('energy', inputValue);
 
-        console.log("Test")
         try {
             const response = await axios.post('http://127.0.0.1:5000/rerender', formData, {
                 headers: {
