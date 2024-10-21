@@ -108,7 +108,8 @@ def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
 
-    energy_value = float(request.form['energy'])
+    lower_bound = float(request.form['lower_bound'])
+    upper_bound = float(request.form['upper_bound'])
 
     pdb_file1_path = 'pdb_file1.pdb'
     pdb_file2_path = 'pdb_file2.pdb'
@@ -117,7 +118,7 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list("residue.csv", energy_value)
+    residue_pairs = create_residue_pairs_list("residue.csv", lower_bound, upper_bound)
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
@@ -143,6 +144,7 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
         chainID1 = pair['ChainID1']
         resID2 = pair['ResidueID2']
         chainID2 = pair['ChainID2']
+        distance = pair['Distance']
         residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
@@ -165,7 +167,7 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
             resid2 = int(residue2.residues[0].resid)
             
             # Create an edge label based on the residue names and IDs
-            edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+            edgeLabel = f'Distance: {distance} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
             #converting to python types instead of numpy types so we can jsonify
             edge_data = {
@@ -183,7 +185,7 @@ def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residu
 def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
     edge_list = []
 
-    for resID1, chainID1, resID2 , chainID2 in residue_pairs:
+    for resID1, chainID1, resID2 , chainID2, distance in residue_pairs:
         residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
@@ -206,7 +208,7 @@ def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, resi
             resid2 = int(residue2.residues[0].resid)
             
             # Create an edge label based on the residue names and IDs
-            edgeLabel = f'{resname1}.{resid1}-{resname2}.{resid2} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+            edgeLabel = f'Distance: {distance} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
             #converting to python types instead of numpy types so we can jsonify
             edge_data = {
@@ -248,6 +250,7 @@ def residue_pairs_for_sub(hash, sub, csv_file, lower_bound = 6.0, upper_bound = 
         lambda row: sub.loc[row['index 1'], row['index 2']], axis=1
     )
 
+    # saving to csv before filtering so can rerender using original data
     residue_pairs.to_csv("residue.csv", index=False)
 
     # Filter rows where distance is within bounds
@@ -256,19 +259,19 @@ def residue_pairs_for_sub(hash, sub, csv_file, lower_bound = 6.0, upper_bound = 
     ]
 
     # Select and return the filtered columns
-    filtered_result = filtered_pairs[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].to_dict(orient='records')
+    filtered_result = filtered_pairs[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].to_dict(orient='records')
 
     print(len(filtered_result), " is length of filtered pairs")
     return filtered_result
 
-def create_residue_pairs_list(csv_file, distance = 6.0):
+def create_residue_pairs_list(csv_file, lower_bound = 6.0, upper_bound = 100.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
     # Determine cutoff
-    filtered_df = df.loc[df['Distance'] >= distance]
+    filtered_df = df.loc[(df['Distance'] >= lower_bound) & (df['Distance'] <= upper_bound)]
 
-    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']].values.tolist()
+    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].values.tolist()
     
     return residue_pairs
 
@@ -317,15 +320,9 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     print("\nFiltered df2 with common residue IDs:")
     print(filtered_df2)
 
-    print(filtered_cb1['Residue ID'].head(), " is head")
-
     # re-index, RESIDUE ID and CHAIN ID ARE STILL THE SAME VALUES AFTER THIS
     filtered_cb1['NewIndex']=range(0,len(filtered_cb1))
     filtered_cb2['NewIndex']=range(0,len(filtered_cb2))
-
-    print(len(filtered_cb1), " is length of f_cb1")
-
-    print(filtered_cb1['Residue ID'].head(), " is head. Test")
 
     # Create hashmaps for filtered_cb1 and filtered_cb2 to return Residue ID and Chain ID from NewIndex
     hashmap_cb1 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb1.iterrows()}
@@ -334,11 +331,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     reverse_hashmap_cb1 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb1.iterrows()}
     reverse_hashmap_cb2 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb2.iterrows()}
 
-    new_index = reverse_hashmap_cb1.get((94, 'A'))
-    print("New index is ", new_index)
 
     matrixA=compute_pairwise_distances(filtered_cb1)
-    print(matrixA.head(), " is matrix a head")
     matrixB=compute_pairwise_distances(filtered_cb2)
     sub=np.abs(matrixA-matrixB)
 
@@ -351,8 +345,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     #get residue pairs for edgelist
     residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
     new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
-
-    print(sub.head(), " is sub head")
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
