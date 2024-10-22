@@ -135,16 +135,19 @@ function Subtract() {
 
         const model = viewer.getModel();
 
-        // Get all atoms in the model
-        const atoms = model.selectedAtoms({});
-
-        // Filter atoms by residue number and chain ID
-        const residueAtoms = atoms.filter(atom => atom.resi === 543 && atom.chain === "A");
-
-        // Print the coordinates of the filtered atoms
-        residueAtoms.forEach(atom => {
-            console.log(`Atom: ${atom.atom}, Chain: ${atom.chain}, Residue: ${atom.resi}, x: ${atom.x}, y: ${atom.y}, z: ${atom.z}`);
-        });
+        viewer.setHoverable({}, true,
+            function (atom, viewer, event, container) {
+              if (!atom.label) {
+                  atom.label = viewer.addLabel(atom.resn + "." + atom.resi + "." + atom.chain, { position: atom, backgroundColor: 'mintcream', fontColor: 'black' });
+              }
+            },
+            function (atom) {
+              if (atom.label) {
+                  viewer.removeLabel(atom.label);
+                  delete atom.label;
+              }
+            }
+          );
 
         viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});
         viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
@@ -185,7 +188,7 @@ function Subtract() {
             <div id="viewport" className="mol-container"></div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <label style={{ marginBottom: '5px' }}>
-                    To Re-render Enter New Lower and Upper Bounds For Energy Cutoff:
+                    To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
                 </label>
                 <input
                     type="number" // Set type to number for double input

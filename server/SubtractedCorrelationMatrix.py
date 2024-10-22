@@ -344,8 +344,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     #get residue pairs for edgelist
     residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
-    new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
-
+    #new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+    new_edgelist = []
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
@@ -433,6 +433,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     top_5 = filter_distance.nlargest(5, 'Distance')
 
     # Extract distances as a 1D array
+    #distances = matrixA.values
     distances = filter_distance['Distance'].values
 
     # Calculate the number of bins using the square root choice
@@ -442,7 +443,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     plt.hist(distances, bins=num_bins, edgecolor='black')
     plt.xlabel('Distance')
     plt.ylabel('Frequency')
-    plt.title(f'Distribution of Filtered Distances (3 < Distance < 8)')
+    plt.title(f'Distribution of Filtered Distances')
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")
@@ -476,7 +477,7 @@ def get_plots_and_protein_structure():
 
     # residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv")
     # print(residue_pairs[:10], " are first 10 resi`due pairs from csv")
-    # edge_list = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+    # edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
