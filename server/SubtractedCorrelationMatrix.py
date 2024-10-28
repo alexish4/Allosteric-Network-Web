@@ -82,28 +82,6 @@ def compute_pairwise_distances(df):
 
     return distance_df
 
-# Function to update the universe atom coordinates
-def update_coordinates_in_universe(u, df, sub, hashmap_cb1):
-    # Scale down shifts to prevent large movements
-    shift_scale = 0.1
-
-    # Go through each index in the distance matrix
-    for new_index in sub.index:
-        # Get the corresponding Residue ID and Chain ID using the hashmap
-        residue_id, chain_id = hashmap_cb1[new_index]
-
-        # Select all atoms for this residue in the MDAnalysis universe
-        residue_atoms = u.select_atoms(f"resid {residue_id} and segid {chain_id}")
-        
-        # Ensure we have selected atoms
-        if len(residue_atoms) > 0:
-            # Calculate the shift for this residue based on the subtracted matrix
-            shift_vector = np.sum(sub.loc[new_index].values) * shift_scale
-            
-            # Apply the shift equally to all atoms in this residue
-            # This part assumes the shift vector affects the X, Y, Z directions equally
-            residue_atoms.positions += np.array([shift_vector, shift_vector, shift_vector])
-
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
@@ -118,7 +96,8 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list("residue.csv", lower_bound, upper_bound)
+    residue_pairs = create_residue_pairs_list("saved_sub.csv", lower_bound, upper_bound)
+    print(len(residue_pairs), " is length of residue pairs")
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
@@ -135,52 +114,6 @@ def recalculate_from_new_cutoff_value():
     }
 
     return structure
-
-def create_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
-    edge_list = []
-
-    for pair in residue_pairs:
-        resID1 = pair['ResidueID1']
-        chainID1 = pair['ChainID1']
-        resID2 = pair['ResidueID2']
-        chainID2 = pair['ChainID2']
-        distance = pair['Distance']
-        residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
-        residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
-
-        empty_residue = False
-
-        # Check if the atom groups are empty by their length
-        if len(residue1) == 0 or len(residue2) == 0:
-            empty_residue = True
-            print("test if empty")
-
-        if not empty_residue:
-            # Use MDAnalysis to calculate the center of mass for each residue
-            crd1 = residue1.center_of_mass()
-            crd2 = residue2.center_of_mass()
-
-            resname1 = residue1.residues[0].resname
-            resid1 = int(residue1.residues[0].resid)
-            
-            resname2 = residue2.residues[0].resname
-            resid2 = int(residue2.residues[0].resid)
-            
-            # Create an edge label based on the residue names and IDs
-            edgeLabel = f'Distance: {distance} ({resID1}.{chainID1}-{resID2}.{chainID2})'
-
-            #converting to python types instead of numpy types so we can jsonify
-            edge_data = {
-                'label': edgeLabel,
-                'coords': {
-                    'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
-                    'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
-                }
-            }
-
-            edge_list.append(edge_data)
-    print(len(edge_list), " is length of edge list")
-    return edge_list
 
 def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, residue_pairs):
     edge_list = []
@@ -223,46 +156,36 @@ def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, resi
     print(len(edge_list), " is length of edge list")
     return edge_list
 
-def residue_pairs_for_sub(hash, sub, csv_file, lower_bound = 6.0, upper_bound = 100.0):
-    # Read the CSV file
-    df = pd.read_csv(csv_file)
+def save_edges_from_sub(sub, hash):
+    all_pairs = []
 
-    # Extract residue pairs columns
-    residue_pairs = df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2']]
+    # Iterate over the sub matrix
+    for i in sub.index:
+        for j in sub.columns:
+            if i < j: # avoid duplicate pairs
+                distance = sub.loc[i, j]
 
-    # Create 'Index1' and 'Index2' by mapping the hash_map values in a vectorized manner
-    residue_pairs['index 1'] = residue_pairs.apply(
-        lambda row: hash.get((row['ResidueID1'], row['ChainID1'])), axis=1
-    )
-    residue_pairs['index 2'] = residue_pairs.apply(
-        lambda row: hash.get((row['ResidueID2'], row['ChainID2'])), axis=1
-    )
+                if distance == 0: #don't include edge with same pair
+                    continue
+                
+                # Retrieve the Residue ID and Chain ID for each pair using the hashmap
+                residue_id1, chain_id1 = hash[i]
+                residue_id2, chain_id2 = hash[j]
 
-    # Drop rows where 'Index1' or 'Index2' are None (unmatched in the hash map)
-    residue_pairs.dropna(subset=['index 1', 'index 2'], inplace=True)
+                # Append each pair with distance value
+                all_pairs.append({
+                    'ResidueID1': residue_id1,
+                    'ChainID1': chain_id1,
+                    'ResidueID2': residue_id2,
+                    'ChainID2': chain_id2,
+                    'Distance': distance
+                })
 
-    # Convert 'Index1' and 'Index2' to integers for use in distance lookup
-    residue_pairs['index 1'] = residue_pairs['index 1'].astype(int)
-    residue_pairs['index 2'] = residue_pairs['index 2'].astype(int)
+    # Convert list of pairs to DataFrame
+    pairs_df = pd.DataFrame(all_pairs)
 
-    # Use vectorized lookup for distances from the 'sub' matrix
-    residue_pairs['Distance'] = residue_pairs.apply(
-        lambda row: sub.loc[row['index 1'], row['index 2']], axis=1
-    )
-
-    # saving to csv before filtering so can rerender using original data
-    residue_pairs.to_csv("residue.csv", index=False)
-
-    # Filter rows where distance is within bounds
-    filtered_pairs = residue_pairs[
-        (residue_pairs['Distance'] >= lower_bound) & (residue_pairs['Distance'] <= upper_bound)
-    ]
-
-    # Select and return the filtered columns
-    filtered_result = filtered_pairs[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].to_dict(orient='records')
-
-    print(len(filtered_result), " is length of filtered pairs")
-    return filtered_result
+    # Save the DataFrame to CSV
+    pairs_df.to_csv("saved_sub.csv", index=False)
 
 def create_residue_pairs_list(csv_file, lower_bound = 6.0, upper_bound = 100.0):
     # Load the CSV file
@@ -343,7 +266,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # new_universe = mda.Universe("pdb_file1.pdb")  
 
     #get residue pairs for edgelist
-    residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
+    #residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
+    save_edges_from_sub(sub, hashmap_cb1)
     #new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
     new_edgelist = []
     # Create a figure with three subplots (1 row, 3 columns)
