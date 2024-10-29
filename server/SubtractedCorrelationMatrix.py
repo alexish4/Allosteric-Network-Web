@@ -358,7 +358,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Extract distances as a 1D array
     #distances = matrixA.values
-    distances = filter_distance['Distance'].values
+    distances = unique_pairs['Distance'].values
 
     # Calculate the number of bins using the square root choice
     num_bins = int(np.ceil(np.sqrt(len(distances))))

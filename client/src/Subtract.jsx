@@ -153,8 +153,8 @@ function Subtract() {
         viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
         viewer.setStyle({chain:'C'}, {cartoon:{color:'green'}});
         viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow'}});
-        viewer.zoomTo();                                      /* set camera */
-        viewer.render();                                      /* render scene */
+        viewer.zoomTo();                                      
+        viewer.render();                                     
         viewer.zoom(1.2, 1000);   
     }
 
@@ -190,6 +190,9 @@ function Subtract() {
                 <label style={{ marginBottom: '5px' }}>
                     To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
                 </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    
+                </div>
                 <input
                     type="number" // Set type to number for double input
                     value={lowerBound}
