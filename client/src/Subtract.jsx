@@ -14,12 +14,19 @@ function Subtract() {
 
     const [pdbFile1, setPdbFile1] = useState(null);
     const [pdbFile2, setPdbFile2] = useState(null);
+    const [edgeFile, setEdgeFile] = useState(null);
     const [subtractionPlot, setsubtractionPlot] = useState(null);
     const [filteredPlot, setfilteredPlot] = useState(null);
     const [distributionPlot, setdistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [upperBound, setUpperBound] = useState('');
     const [lowerBound, setLowerBound] = useState('');
+    const [selectedChains, setSelectedChains] = useState({
+        A: false,
+        B: false,
+        C: false,
+        D: false,
+    });
 
     // Handle button click
     const handleNewEnergyValue = async () => {
@@ -61,6 +68,17 @@ function Subtract() {
 
     const handlePdbFile2Change = (event) => {
         setPdbFile2(event.target.files[0]);
+    };
+
+    const handleEdgesFileChange = (event) => {
+        setEdgeFile(event.target.files[0]);
+    };
+
+    const handleChainChange = (chain) => {
+        setSelectedChains((prevChains) => ({
+            ...prevChains,
+            [chain]: !prevChains[chain],
+        }));
     };
 
     const handleSubmit = async () => {
@@ -191,7 +209,42 @@ function Subtract() {
                     To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    
+                    Optional, Submit Custom Edges CSV Table To Render: <input type="file" onChange={handleEdgesFileChange} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    Select Which Portions of Edges to Render: 
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={selectedChains.A}
+                            onChange={() => handleChainChange('A')}
+                        />
+                        Chain A
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={selectedChains.B}
+                            onChange={() => handleChainChange('B')}
+                        />
+                        Chain B
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={selectedChains.C}
+                            onChange={() => handleChainChange('C')}
+                        />
+                        Chain C
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={selectedChains.D}
+                            onChange={() => handleChainChange('D')}
+                        />
+                        Chain D
+                    </label>
                 </div>
                 <input
                     type="number" // Set type to number for double input
