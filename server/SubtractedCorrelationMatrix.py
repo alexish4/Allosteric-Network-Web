@@ -18,6 +18,7 @@ import base64
 import pandas as pd
 import csv
 import math
+import json
 
 #Add original atom index to be able to do new matrix
 def pdb_to_dataframe(pdb_file):
@@ -89,6 +90,19 @@ def recalculate_from_new_cutoff_value():
     lower_bound = float(request.form['lower_bound'])
     upper_bound = float(request.form['upper_bound'])
 
+    selected_chains = json.loads(request.form.get('selected_chains'))
+
+    filtered_chains = []
+    if selected_chains.get('A'):
+        filtered_chains.append("A")
+    if selected_chains.get('B'):
+        filtered_chains.append("B")
+    if selected_chains.get('C'):
+        filtered_chains.append("C")
+    if selected_chains.get('D'):
+        filtered_chains.append("D")
+    print(filtered_chains, " is filtered chains")
+
     pdb_file1_path = 'pdb_file1.pdb'
     pdb_file2_path = 'pdb_file2.pdb'
     pdb_file1.save(pdb_file1_path)
@@ -96,7 +110,7 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list("saved_sub.csv", lower_bound, upper_bound)
+    residue_pairs = create_residue_pairs_list("saved_sub.csv", filtered_chains, lower_bound, upper_bound)
     print(len(residue_pairs), " is length of residue pairs")
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
@@ -187,12 +201,17 @@ def save_edges_from_sub(sub, hash):
     # Save the DataFrame to CSV
     pairs_df.to_csv("saved_sub.csv", index=False)
 
-def create_residue_pairs_list(csv_file, lower_bound = 6.0, upper_bound = 100.0):
+def create_residue_pairs_list(csv_file, filtered_chains, lower_bound = 6.0, upper_bound = 100.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
     # Determine cutoff
-    filtered_df = df.loc[(df['Distance'] >= lower_bound) & (df['Distance'] <= upper_bound)]
+    filtered_df = df.loc[
+        (df['Distance'] >= lower_bound) & 
+        (df['Distance'] <= upper_bound) & 
+        (df['ChainID1'].isin(filtered_chains)) & 
+        (df['ChainID2'].isin(filtered_chains))
+    ]
 
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].values.tolist()
     

@@ -29,7 +29,7 @@ function Subtract() {
     });
 
     // Handle button click
-    const handleNewEnergyValue = async () => {
+    const handleRerender = async () => {
       console.log('Button clicked with input:', upperBound);
       if (!pdbFile1 || !pdbFile2) {
         alert('Please select both PDB files.');
@@ -41,6 +41,7 @@ function Subtract() {
         formData.append('pdb_file2', pdbFile2);
         formData.append('upper_bound', upperBound);
         formData.append('lower_bound', lowerBound);
+        formData.append('selected_chains', JSON.stringify(selectedChains));
 
         try {
             const response = await axios.post('http://127.0.0.1:5000/rerender', formData, {
@@ -262,7 +263,7 @@ function Subtract() {
                     style={{ marginLeft: '10px', padding: '5px' }}
                     placeholder="Upper Bound" // Optional placeholder
                 />
-                <button onClick={handleNewEnergyValue} style={{ marginLeft: '10px', padding: '5px' }}>
+                <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
                     Re-Render
                 </button>
             </div>
