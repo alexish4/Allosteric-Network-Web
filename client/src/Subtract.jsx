@@ -1,4 +1,3 @@
-// Import necessary components
 import { React, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Link, useLocation } from 'react-router-dom';
 import Home from './Home';
@@ -42,6 +41,7 @@ function Subtract() {
         formData.append('upper_bound', upperBound);
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
+        formData.append('edge_file', edgeFile);
 
         try {
             const response = await axios.post('http://127.0.0.1:5000/rerender', formData, {

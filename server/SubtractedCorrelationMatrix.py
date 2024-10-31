@@ -86,6 +86,7 @@ def compute_pairwise_distances(df):
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
+    #edge_file = request.files['edge_file']
 
     lower_bound = float(request.form['lower_bound'])
     upper_bound = float(request.form['upper_bound'])
@@ -101,7 +102,6 @@ def recalculate_from_new_cutoff_value():
         filtered_chains.append("C")
     if selected_chains.get('D'):
         filtered_chains.append("D")
-    print(filtered_chains, " is filtered chains")
 
     pdb_file1_path = 'pdb_file1.pdb'
     pdb_file2_path = 'pdb_file2.pdb'
@@ -137,11 +137,6 @@ def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, resi
         residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
 
         empty_residue = False
-
-        # Check if the atom groups are empty by their length
-        if len(residue1) == 0 or len(residue2) == 0:
-            empty_residue = True
-            print("test if empty")
 
         if not empty_residue:
             # Use MDAnalysis to calculate the center of mass for each residue
