@@ -303,17 +303,24 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     matrixB=compute_pairwise_distances(filtered_cb2)
     sub=np.abs(matrixA-matrixB)
 
-    # Apply the updates based on the subtracted distances
-    # update_coordinates_in_universe(u, filtered_cb1, sub, hashmap_cb1) 
-    # u.atoms.write("pdb_file1.pdb")
+    if sub.shape == matrixB.shape:
+        print("The matrices have the same shape.")
+    else:
+        print("The matrices have different shapes.")
 
-    # new_universe = mda.Universe("pdb_file1.pdb")  
+    # Create a mask where both matrixA and matrixB have values less than 15
+    mask = (matrixA < 15) & (matrixB < 15)
 
-    #get residue pairs for edgelist
-    #residue_pairs = residue_pairs_for_sub(reverse_hashmap_cb1, sub, "merged_distance_pairs.csv")
-    save_edges_from_sub(sub, hashmap_cb1)
-    #new_edgelist = create_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
-    new_edgelist = []
+    # Apply the mask to sub, setting elements to NaN where the condition is not met
+    filtered_sub = sub.where(mask)
+
+    # Alternatively, if you want to remove rows and columns where all values are NaN
+    filtered_sub = filtered_sub.dropna(how='all').dropna(axis=1, how='all')
+
+    print(len(filtered_sub))
+
+    save_edges_from_sub(filtered_sub, hashmap_cb1)
+
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
@@ -426,7 +433,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     #save to a dataframe table
     top_5.to_csv('Top5_distance_pairs.csv',index=False)
 
-    return calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph, new_edgelist
+    return calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph
 
 
 def get_plots_and_protein_structure():
@@ -438,29 +445,19 @@ def get_plots_and_protein_structure():
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
-    calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph, new_edgelist = get_plots(pdb_file1_path, pdb_file2_path)
-
-    # u = mda.Universe(pdb_file1_path)
-    # print(len(u.atoms), " is length of atoms")
-
-    # residue_pairs = create_residue_pairs_list("merged_distance_pairs.csv")
-    # print(residue_pairs[:10], " are first 10 resi`due pairs from csv")
-    # edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+    calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
 
-    # view_data = {
-    #     'file_content': file_content,
-    #     'edges': edge_list
-    # }
+    edge_list = []
 
     plots = {
         'calculated_matrix_image' : calculated_matrix_image,
         'subtracted_distance_matrix_image' : subtracted_distance_matrix_image,
         'distribution_graph' : distribution_graph,
         'pdb_content' : pdb_content,
-        'edges' : new_edgelist
+        'edges' : edge_list
     }
 
     return plots

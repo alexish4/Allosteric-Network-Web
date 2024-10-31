@@ -144,7 +144,7 @@ function Subtract() {
                 // Show the tooltip when hovering
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
-                tooltip.style.top = `${event.clientY}px`;
+                tooltip.style.top = `${event.clientY + 500}px`;
 
                 // Set the tooltip content with edge label
                 tooltip.innerHTML = `Edge Label: ${edge.label}`;
