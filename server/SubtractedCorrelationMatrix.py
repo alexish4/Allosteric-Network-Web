@@ -86,7 +86,7 @@ def compute_pairwise_distances(df):
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
-    edge_file = request.files['edge_file']
+    edge_file = request.files.get('edge_file')
 
     # Check if a file was submitted
     submitted_edge_file = False
