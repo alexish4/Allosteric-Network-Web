@@ -86,7 +86,18 @@ def compute_pairwise_distances(df):
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
-    #edge_file = request.files['edge_file']
+    edge_file = request.files['edge_file']
+
+    # Check if a file was submitted
+    submitted_edge_file = False
+    if edge_file and edge_file.filename != '':
+        submitted_edge_file = True
+        edge_file.save("edges_table.csv")
+    
+    file_to_render = "saved_sub.csv"
+    if submitted_edge_file:
+        filter_by_edge_file("saved_sub.csv", "edges_table.csv")
+        file_to_render = "filtered_edges.csv"
 
     lower_bound = float(request.form['lower_bound'])
     upper_bound = float(request.form['upper_bound'])
@@ -110,7 +121,7 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list("saved_sub.csv", filtered_chains, lower_bound, upper_bound)
+    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, lower_bound, upper_bound)
     print(len(residue_pairs), " is length of residue pairs")
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
@@ -195,6 +206,25 @@ def save_edges_from_sub(sub, hash):
 
     # Save the DataFrame to CSV
     pairs_df.to_csv("saved_sub.csv", index=False)
+
+def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
+    current_df = pd.read_csv(current_csv)
+    edges_df = pd.read_csv(csv_with_edges_to_filter_by)
+
+    edges_df = edges_df.drop("Distance", axis=1, errors="ignore")
+
+    # Merging the two DataFrames on the specified columns
+    filtered_df = current_df.merge(
+        edges_df, 
+        on=["ResidueID1", "ChainID1", "ResidueID2", "ChainID2"],
+        how="inner"
+    )
+    
+    # Selecting only the columns from current_df
+    filtered_df = filtered_df[current_df.columns]
+    filtered_df.to_csv("filtered_edges.csv", index=False)
+    
+    return filtered_df
 
 def create_residue_pairs_list(csv_file, filtered_chains, lower_bound = 6.0, upper_bound = 100.0):
     # Load the CSV file
