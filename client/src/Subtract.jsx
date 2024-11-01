@@ -18,6 +18,7 @@ function Subtract() {
     const [filteredPlot, setfilteredPlot] = useState(null);
     const [distributionPlot, setdistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
+    const [showRenderOptions, setShowRenderOptions] = useState(false);
     const [upperBound, setUpperBound] = useState('');
     const [lowerBound, setLowerBound] = useState('');
     const [selectedChains, setSelectedChains] = useState({
@@ -134,6 +135,7 @@ function Subtract() {
             setdistributionPlot(plots.distribution_graph);
 
             render3dmol(data);
+            setShowRenderOptions(true);
 
         } catch (error) {
             console.error('Error:', error);
@@ -231,60 +233,61 @@ function Subtract() {
             )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <label style={{ marginBottom: '5px' }}>
-                To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-                Optional, Submit Custom Edges CSV Table To Render: <input type="file" onChange={handleEdgesFileChange} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-                Select Which Portions of Edges to Render: 
-                <h3>Select Chains and Enter Ranges</h3>
-                {['A', 'B', 'C', 'D'].map(chain => (
-                    <div key={chain} style={{ marginBottom: '20px' }}>
-                        <label>
-                            <input
-                                type="checkbox"
-                                checked={selectedChains[chain]}
-                                onChange={() => handleChainChange(chain)}
-                            />
-                            Chain {chain}
-                        </label>
-                        {selectedChains[chain] && ( // Show range input only if the chain is selected
-                            <div>
+        {showRenderOptions && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <label style={{ marginBottom: '5px' }}>
+                    To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    Optional, Submit Custom Edges CSV Table To Render: <input type="file" onChange={handleEdgesFileChange} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <h3>Select Chains and Enter Ranges:</h3>
+                    {['A', 'B', 'C', 'D'].map(chain => (
+                        <div key={chain} style={{ marginBottom: '20px' }}>
+                            <label>
                                 <input
-                                    type="text"
-                                    value={chainRanges[chain]}
-                                    onChange={(e) => handleRangeInput(chain, e.target.value)}
-                                    style={{ marginLeft: '10px', padding: '5px' }}
-                                    placeholder={`Enter ranges for Chain ${chain} (e.g., 44-50, 100-110)`}
+                                    type="checkbox"
+                                    checked={selectedChains[chain]}
+                                    onChange={() => handleChainChange(chain)}
                                 />
-                            </div>
-                        )}
-                    </div>
-                ))}
+                                Chain {chain}
+                            </label>
+                            {selectedChains[chain] && ( // Show range input only if the chain is selected
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={chainRanges[chain]}
+                                        onChange={(e) => handleRangeInput(chain, e.target.value)}
+                                        style={{ marginLeft: '10px', padding: '5px' }}
+                                        placeholder={`Enter ranges for Chain ${chain} (e.g., 44-50, 100-110)`}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+                <input
+                    type="number" // Set type to number for double input
+                    value={lowerBound}
+                    onChange={(e) => setLowerBound(e.target.value)}
+                    step="0.01" // Set step to allow decimal values
+                    style={{ marginLeft: '10px', padding: '5px' }}
+                    placeholder="Lower Bound" // Optional placeholder
+                />
+                <input
+                    type="number" // Set type to number for double input
+                    value={upperBound}
+                    onChange={(e) => setUpperBound(e.target.value)}
+                    step="0.01" // Set step to allow decimal values
+                    style={{ marginLeft: '10px', padding: '5px' }}
+                    placeholder="Upper Bound" // Optional placeholder
+                />
+                <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
+                    Re-Render
+                </button>
             </div>
-            <input
-                type="number" // Set type to number for double input
-                value={lowerBound}
-                onChange={(e) => setLowerBound(e.target.value)}
-                step="0.01" // Set step to allow decimal values
-                style={{ marginLeft: '10px', padding: '5px' }}
-                placeholder="Lower Bound" // Optional placeholder
-            />
-            <input
-                type="number" // Set type to number for double input
-                value={upperBound}
-                onChange={(e) => setUpperBound(e.target.value)}
-                step="0.01" // Set step to allow decimal values
-                style={{ marginLeft: '10px', padding: '5px' }}
-                placeholder="Upper Bound" // Optional placeholder
-            />
-            <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
-                Re-Render
-            </button>
-        </div>
+        )}
         <div id="viewport" className="mol-container"></div>
     </div>
 
