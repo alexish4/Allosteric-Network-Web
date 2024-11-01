@@ -7,3 +7,12 @@ server/__pycache__/
 server/distance_topology/
 server/energy_topology/
 server/view_data.json
+server/Eve_Files/Mut_CB_distance_pairs.csv
+server/Eve_Files/Top5_distance_pairs.csv
+server/Eve_Files/WT_CB_distance_pairs.csv
+server/Eve_Files/distance_pairwise_CB.ipynb
+server/Mut_CB_distance_pairs.csv
+server/Subtract_Files/
+server/Top5_distance_pairs.csv
+server/WT_CB_distance_pairs.csv
+server/merged_distance_pairs.csv

@@ -241,6 +241,12 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
     current_df = pd.read_csv(current_csv)
     edges_df = pd.read_csv(csv_with_edges_to_filter_by)
 
+    # Making sure format matches
+    first_chain_id = current_df['ChainID1'].iloc[0]
+    if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
+        edges_df['ChainID1'] = edges_df['ChainID1'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+        edges_df['ChainID2'] = edges_df['ChainID2'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+
     edges_df = edges_df.drop("Distance", axis=1, errors="ignore")
 
     # Merging the two DataFrames on the specified columns
@@ -249,15 +255,6 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
         on=["ResidueID1", "ChainID1", "ResidueID2", "ChainID2"],
         how="inner"
     )
-    
-    if len(filtered_df) == 0:
-        edges_df['ChainID1'] = edges_df['ChainID1'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
-        edges_df['ChainID2'] = edges_df['ChainID2'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
-        filtered_df = current_df.merge(
-            edges_df, 
-            on=["ResidueID1", "ChainID1", "ResidueID2", "ChainID2"],
-            how="inner"
-        )
 
     # Selecting only the columns from current_df
     filtered_df = filtered_df[current_df.columns]

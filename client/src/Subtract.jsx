@@ -22,10 +22,10 @@ function Subtract() {
     const [upperBound, setUpperBound] = useState('');
     const [lowerBound, setLowerBound] = useState('');
     const [selectedChains, setSelectedChains] = useState({
-        A: false,
-        B: false,
-        C: false,
-        D: false,
+        A: true,
+        B: true,
+        C: true,
+        D: true,
     });
     const [chainRanges, setChainRanges] = useState({
         A: '',
