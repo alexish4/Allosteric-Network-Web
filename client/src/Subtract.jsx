@@ -48,6 +48,7 @@ function Subtract() {
         formData.append('upper_bound', upperBound);
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
+        formData.append('chain_ranges', JSON.stringify(chainRanges));
         
         // Only append edgeFile if it exists
         if (edgeFile) {
@@ -100,15 +101,8 @@ function Subtract() {
             return { start, end };
         });
 
-        // Check for valid ranges
-        const isValid = parsed.every(({ start, end }) => !isNaN(start) && !isNaN(end) && start <= end);
-        
-        if (isValid) {
-            // If valid, update the range for the specific chain
-            setChainRanges(prev => ({ ...prev, [chain]: input }));
-        } else {
-            alert(`Please enter valid ranges for Chain ${chain}, e.g., '44-50' or '44-50, 100-110'.`);
-        }
+        setChainRanges(prev => ({ ...prev, [chain]: input }));
+
     };
 
     const handleSubmit = async () => {

@@ -40,6 +40,10 @@ def pdb_to_dataframe(pdb_file):
     
     # Create a pandas DataFrame from the atom data
     df = pd.DataFrame(atom_data)
+
+    # Fixes weird bug
+    #df['Chain ID'] = df['Chain ID'].replace({'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'})
+    
     
     return df
 
@@ -83,6 +87,21 @@ def compute_pairwise_distances(df):
 
     return distance_df
 
+def parse_ranges(ranges_str):
+        ranges = []
+        for range_part in ranges_str.split(','):
+            range_part = range_part.strip()
+            if '-' in range_part:
+                try:
+                    start, end = map(int, range_part.split('-'))
+                    if start <= end:
+                        ranges.append((start, end))
+                    else:
+                        print(f"Invalid range: {range_part}")
+                except ValueError:
+                    print(f"Invalid format: {range_part}")
+        return ranges
+
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
@@ -103,16 +122,27 @@ def recalculate_from_new_cutoff_value():
     upper_bound = float(request.form['upper_bound'])
 
     selected_chains = json.loads(request.form.get('selected_chains'))
+    chain_ranges = json.loads(request.form.get('chain_ranges'))
+
+    validated_ranges = {}
+    for chain, ranges_str in chain_ranges.items():
+        if ranges_str:
+            validated_ranges[chain] = parse_ranges(ranges_str)
+    print(validated_ranges)
 
     filtered_chains = []
     if selected_chains.get('A'):
         filtered_chains.append("A")
+        filtered_chains.append("PROA")
     if selected_chains.get('B'):
         filtered_chains.append("B")
+        filtered_chains.append("PROB")
     if selected_chains.get('C'):
         filtered_chains.append("C")
+        filtered_chains.append("PROC")
     if selected_chains.get('D'):
         filtered_chains.append("D")
+        filtered_chains.append("PROD")
 
     pdb_file1_path = 'pdb_file1.pdb'
     pdb_file2_path = 'pdb_file2.pdb'
@@ -121,7 +151,7 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, lower_bound, upper_bound)
+    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound, upper_bound)
     print(len(residue_pairs), " is length of residue pairs")
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
@@ -220,13 +250,22 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
         how="inner"
     )
     
+    if len(filtered_df) == 0:
+        edges_df['ChainID1'] = edges_df['ChainID1'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+        edges_df['ChainID2'] = edges_df['ChainID2'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+        filtered_df = current_df.merge(
+            edges_df, 
+            on=["ResidueID1", "ChainID1", "ResidueID2", "ChainID2"],
+            how="inner"
+        )
+
     # Selecting only the columns from current_df
     filtered_df = filtered_df[current_df.columns]
     filtered_df.to_csv("filtered_edges.csv", index=False)
     
     return filtered_df
 
-def create_residue_pairs_list(csv_file, filtered_chains, lower_bound = 6.0, upper_bound = 100.0):
+def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower_bound = 6.0, upper_bound = 100.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
