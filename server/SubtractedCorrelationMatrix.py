@@ -111,12 +111,12 @@ def recalculate_from_new_cutoff_value():
     submitted_edge_file = False
     if edge_file and edge_file.filename != '':
         submitted_edge_file = True
-        edge_file.save("edges_table.csv")
+        edge_file.save("Subtract_Files/edges_table.csv")
     
-    file_to_render = "saved_sub.csv"
+    file_to_render = "Subtract_Files/saved_sub.csv"
     if submitted_edge_file:
-        filter_by_edge_file("saved_sub.csv", "edges_table.csv")
-        file_to_render = "filtered_edges.csv"
+        filter_by_edge_file("Subtract_Files/saved_sub.csv", "Subtract_Files/edges_table.csv")
+        file_to_render = "Subtract_Files/filtered_edges.csv"
 
     lower_bound = float(request.form['lower_bound'])
     upper_bound = float(request.form['upper_bound'])
@@ -144,8 +144,8 @@ def recalculate_from_new_cutoff_value():
         filtered_chains.append("D")
         filtered_chains.append("PROD")
 
-    pdb_file1_path = 'pdb_file1.pdb'
-    pdb_file2_path = 'pdb_file2.pdb'
+    pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
+    pdb_file2_path = 'Subtract_Files/pdb_file2.pdb'
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
@@ -235,7 +235,7 @@ def save_edges_from_sub(sub, hash):
     pairs_df = pd.DataFrame(all_pairs)
 
     # Save the DataFrame to CSV
-    pairs_df.to_csv("saved_sub.csv", index=False)
+    pairs_df.to_csv("Subtract_Files/saved_sub.csv", index=False)
 
 def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
     current_df = pd.read_csv(current_csv)
@@ -261,7 +261,7 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
 
     # Selecting only the columns from current_df
     filtered_df = filtered_df[current_df.columns]
-    filtered_df.to_csv("filtered_edges.csv", index=False)
+    filtered_df.to_csv("Subtract_Files/filtered_edges.csv", index=False)
     
     return filtered_df
 
@@ -479,8 +479,8 @@ def get_plots_and_protein_structure():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
 
-    pdb_file1_path = 'pdb_file1.pdb'
-    pdb_file2_path = 'pdb_file2.pdb'
+    pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
+    pdb_file2_path = 'Subtract_Files/pdb_file2.pdb'
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
