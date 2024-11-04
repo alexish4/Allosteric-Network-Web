@@ -119,7 +119,6 @@ def recalculate_from_new_cutoff_value():
         file_to_render = "Subtract_Files/filtered_edges.csv"
 
     lower_bound = float(request.form['lower_bound'])
-    upper_bound = float(request.form['upper_bound'])
 
     selected_chains = json.loads(request.form.get('selected_chains'))
     chain_ranges = json.loads(request.form.get('chain_ranges'))
@@ -151,7 +150,7 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound, upper_bound)
+    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
     print(len(residue_pairs), " is length of residue pairs")
     edge_list = rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
@@ -262,14 +261,13 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
     
     return filtered_df
 
-def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower_bound = 6.0, upper_bound = 100.0):
+def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower_bound = 6.0):
     # Load the CSV file
     df = pd.read_csv(csv_file)
     
     # Determine cutoff
     filtered_df = df.loc[
         (df['Distance'] >= lower_bound) & 
-        (df['Distance'] <= upper_bound) & 
         (df['ChainID1'].isin(filtered_chains)) & 
         (df['ChainID2'].isin(filtered_chains))
     ]

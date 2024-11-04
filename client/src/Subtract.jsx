@@ -19,7 +19,6 @@ function Subtract() {
     const [distributionPlot, setdistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showRenderOptions, setShowRenderOptions] = useState(false);
-    const [upperBound, setUpperBound] = useState('');
     const [lowerBound, setLowerBound] = useState('');
     const [selectedChains, setSelectedChains] = useState({
         A: true,
@@ -36,7 +35,6 @@ function Subtract() {
 
     // Handle button click
     const handleRerender = async () => {
-      console.log('Button clicked with input:', upperBound);
       if (!pdbFile1 || !pdbFile2) {
         alert('Please select both PDB files.');
         return;
@@ -45,7 +43,6 @@ function Subtract() {
         const formData = new FormData();
         formData.append('pdb_file1', pdbFile1);
         formData.append('pdb_file2', pdbFile2);
-        formData.append('upper_bound', upperBound);
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
         formData.append('chain_ranges', JSON.stringify(chainRanges));
@@ -268,14 +265,6 @@ function Subtract() {
                     step="0.01" // Set step to allow decimal values
                     style={{ marginLeft: '10px', padding: '5px' }}
                     placeholder="Lower Bound" // Optional placeholder
-                />
-                <input
-                    type="number" // Set type to number for double input
-                    value={upperBound}
-                    onChange={(e) => setUpperBound(e.target.value)}
-                    step="0.01" // Set step to allow decimal values
-                    style={{ marginLeft: '10px', padding: '5px' }}
-                    placeholder="Upper Bound" // Optional placeholder
                 />
                 <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
                     Re-Render
