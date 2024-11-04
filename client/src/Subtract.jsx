@@ -254,7 +254,7 @@ function Subtract() {
                                         value={chainRanges[chain]}
                                         onChange={(e) => handleRangeInput(chain, e.target.value)}
                                         style={{ marginLeft: '10px', padding: '5px' }}
-                                        placeholder={`Enter ranges for Chain ${chain} (e.g., 44-50, 100-110)`}
+                                        placeholder={`(e.g., 44-50, 100-110)`}
                                     />
                                 </div>
                             )}

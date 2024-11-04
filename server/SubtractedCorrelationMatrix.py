@@ -274,6 +274,46 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
         (df['ChainID2'].isin(filtered_chains))
     ]
 
+    if validated_ranges: # If user entered ranges
+        # Create a mask for the ranges by iterating over each chain and its range(s)
+        range_mask = False  # Start with an empty mask
+        
+        # Making sure format matches
+        first_chain_id = filtered_df['ChainID1'].iloc[0]
+        revert_format = False
+        if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
+            chain_mapping = {'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'}
+            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
+            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
+            revert_format = True
+
+        for chain, ranges in validated_ranges.items():
+            for r in ranges:
+                min_range, max_range = r
+                # Combine range mask with OR condition to include all ranges
+                range_mask |= (
+                    ((filtered_df['ChainID1'] == chain) & 
+                     (filtered_df['ResidueID1'] >= min_range) & 
+                     (filtered_df['ResidueID1'] <= max_range)) |
+                    ((filtered_df['ChainID2'] == chain) & 
+                     (filtered_df['ResidueID2'] >= min_range) & 
+                     (filtered_df['ResidueID2'] <= max_range))
+                )
+
+        # Include chains not in validated_ranges by using all residues for those chains
+        remaining_chains = set(filtered_chains) - set(validated_ranges.keys())
+        remaining_mask = (
+            (filtered_df['ChainID1'].isin(remaining_chains)) |
+            (filtered_df['ChainID2'].isin(remaining_chains))
+        )
+        filtered_df = filtered_df[range_mask | remaining_mask]
+        
+        if revert_format:
+            chain_mapping = {'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'}
+            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
+            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
+
+
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].values.tolist()
     
     return residue_pairs
@@ -377,8 +417,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot the thresholded matrix (result)
     cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
-    fig.colorbar(cax3, ax=axs[2], label="Distance (Å)")
-    axs[2].set_title("Subtracted Wt and Mut")
+    fig.colorbar(cax3, ax=axs[2], label="Delta Distance (Å)")
+    axs[2].set_title("Subtracted Wt and Mut, Delta Distance")
     axs[2].set_xlabel("Residue Index")
     axs[2].invert_yaxis()  # Invert y-axis as before
 
