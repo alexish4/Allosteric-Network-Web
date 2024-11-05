@@ -114,7 +114,7 @@ document.getElementById('upload-form').onsubmit = function(e) {
     formData.append('k', k);
     formData.append('average', average);
     // Use axios instead of fetch
-    axios.post('http://127.0.0.1:5000/upload', formData, {
+    axios.post('/api/upload', formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
@@ -268,7 +268,7 @@ function drawGraph(graph) {
             const formData = new FormData();
             formData.append('resist1', resist1Resid);
             formData.append('resist2', resist2Resid);
-            const response = axios.post('http://127.0.0.1:5000/calculate', formData, {
+            const response = axios.post('/api/calculate', formData, {
                 headers: {
                     'Content-Type': 'application/json',
                 },

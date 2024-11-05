@@ -79,7 +79,7 @@ function Allosteric() {
   };
 
   const fetch3DMol = async () => {
-    axios.post('http://127.0.0.1:5000/py3dmol', {
+    axios.post('/api/py3dmol', {
       headers: {
           'Content-Type': 'multipart/form-data',
       },

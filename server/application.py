@@ -23,7 +23,7 @@ CORS(app, resources={r"/api/*": {"origins": ["http://flowallostery.westernu.edu"
 #387,388,389,389,390,391,392
 #328,329,334,338,378,348
 
-@app.route('/py3dmol', methods=['POST'])
+@app.route('/api/py3dmol', methods=['POST'])
 def py3dmol():
     #py3dmol_content = EnergyCode.visualizeBetweenness()
 
@@ -32,7 +32,7 @@ def py3dmol():
 
     return jsonify(py3dmol_content)
 
-@app.route('/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST'])
 def upload_file():
     graph_data = Graph2D.process_graph_data()
     return jsonify(graph_data)
@@ -47,7 +47,7 @@ def rerender():
     structure = SubtractedCorrelationMatrix.recalculate_from_new_cutoff_value()
     return jsonify(structure)
 
-@app.route('/calculate', methods=['POST'])
+@app.route('/api/calculate', methods=['POST'])
 def compute_flow_betweenness():
     global adj_matrix
     global source_array
