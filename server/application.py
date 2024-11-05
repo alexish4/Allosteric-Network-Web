@@ -18,7 +18,7 @@ import json
 
 app=Flask(__name__)
 application=app
-CORS(app, resources={r"/*": {"origins": "*"}}) 
+CORS(app, resources={r"/api/*": {"origins": ["http://flowallostery.westernu.edu", "http://204.9.174.78"]}})
 
 #387,388,389,389,390,391,392
 #328,329,334,338,378,348
@@ -37,12 +37,12 @@ def upload_file():
     graph_data = Graph2D.process_graph_data()
     return jsonify(graph_data)
 
-@app.route('/subtract', methods=['POST'])
+@app.route('/api/subtract', methods=['POST'])
 def subtracted_matrix():
     plots_and_protein = SubtractedCorrelationMatrix.get_plots_and_protein_structure()
     return jsonify(plots_and_protein)
 
-@app.route('/rerender', methods=['POST'])
+@app.route('/api/rerender', methods=['POST'])
 def rerender():
     structure = SubtractedCorrelationMatrix.recalculate_from_new_cutoff_value()
     return jsonify(structure)
@@ -87,6 +87,6 @@ def compute_flow_betweenness():
     return jsonify({'betweenness_score': betweenness_score})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    #app.run(debug=True)
     # port = int(os.environ.get("PORT", 5000))
-    # app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=5000, debug=True)

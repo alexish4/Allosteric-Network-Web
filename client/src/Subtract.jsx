@@ -53,7 +53,7 @@ function Subtract() {
         }
 
         try {
-            const response = await axios.post('http://127.0.0.1:5000/rerender', formData, {
+            const response = await axios.post('/api/rerender', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -114,7 +114,7 @@ function Subtract() {
 
         console.log("Test")
         try {
-            const response = await axios.post('http://127.0.0.1:5000/subtract', formData, {
+            const response = await axios.post('/api/subtract', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
