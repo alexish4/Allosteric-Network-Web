@@ -227,11 +227,11 @@ function Subtract() {
         {showRenderOptions && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <label style={{ marginBottom: '5px' }}>
-                    To Render Distances Enter Lower and Upper Bounds For Energy Cutoff, Use Distribution Graph For Help:
+                    To Render Enter Delta Distance Value for Cutoff, Use Distribution Graph For Help:
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                {/* <div style={{ display: 'flex', alignItems: 'center' }}>
                     Optional, Submit Custom Edges CSV Table To Render: <input type="file" onChange={handleEdgesFileChange} />
-                </div>
+                </div> */}
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <h3>Select Chains and Enter Ranges:</h3>
                     {['A', 'B', 'C', 'D'].map(chain => (
@@ -264,7 +264,7 @@ function Subtract() {
                     onChange={(e) => setLowerBound(e.target.value)}
                     step="0.01" // Set step to allow decimal values
                     style={{ marginLeft: '10px', padding: '5px' }}
-                    placeholder="Lower Bound" // Optional placeholder
+                    placeholder="Delta Distance" // Optional placeholder
                 />
                 <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
                     Re-Render
