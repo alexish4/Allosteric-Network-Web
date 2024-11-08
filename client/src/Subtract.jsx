@@ -9,6 +9,8 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
     //can do things with $3Dmol here
     });
 
+import MyImage from "./assets/Subtract-intro.png";
+
 function Subtract() {
 
     const [pdbFile1, setPdbFile1] = useState(null);
@@ -59,6 +61,12 @@ function Subtract() {
                 },
             });
             const data = response.data;
+
+            if (data.edges.length === 0) {
+                // Show message if edges length is 0
+                alert("No edges found in the data. Consider lowering delta distance cutoff");
+            }
+
             render3dmol(data);
 
         } catch (error) {
@@ -200,8 +208,10 @@ function Subtract() {
 
     return (
     <div>
-        <h1>PDB File Uploader</h1>
-        <h3>Please Submit 2 PDB Files:</h3>
+        <h1>Compare Residue-Residue Distance Change</h1>
+        <img src={MyImage} alt="Residue-Residue Distance" style={{ maxWidth: "100%", height: "auto", marginTop: "20px" }} />
+        <br></br>
+
         <input type="file" onChange={handlePdbFile1Change} />
         <input type="file" onChange={handlePdbFile2Change} />
         <button onClick={handleSubmit}>Submit</button>

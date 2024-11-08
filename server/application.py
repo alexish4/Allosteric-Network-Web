@@ -15,10 +15,12 @@ import EnergyCode
 import Graph2D
 import SubtractedCorrelationMatrix
 import json
+import logging
 
 app=Flask(__name__)
 application=app
-CORS(app, resources={r"/api/*": {"origins": ["http://flowallostery.westernu.edu", "http://204.9.174.78"]}})
+CORS(app, resources={r"/api/*": {"origins": ["http://flowallostery.westernu.edu", "http://204.9.174.78", "http://localhost:5173"]}})
+logging.basicConfig(filename='/home/alexhernandez/Allosteric-Network/server/logfile.log', level=logging.INFO)
 
 #387,388,389,389,390,391,392
 #328,329,334,338,378,348
