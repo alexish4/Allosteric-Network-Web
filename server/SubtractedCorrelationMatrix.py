@@ -19,6 +19,7 @@ import pandas as pd
 import csv
 import math
 import json
+import SaltBridgePlot
 
 #Add original atom index to be able to do new matrix
 def pdb_to_dataframe(pdb_file):
@@ -520,6 +521,7 @@ def get_plots_and_protein_structure():
     pdb_file2.save(pdb_file2_path)
 
     calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
+    salt_plot_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
@@ -528,7 +530,7 @@ def get_plots_and_protein_structure():
 
     plots = {
         'calculated_matrix_image' : calculated_matrix_image,
-        'subtracted_distance_matrix_image' : subtracted_distance_matrix_image,
+        'salt_plot_image' : salt_plot_image,
         'distribution_graph' : distribution_graph,
         'pdb_content' : pdb_content,
         'edges' : edge_list
