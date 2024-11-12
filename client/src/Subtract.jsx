@@ -219,7 +219,6 @@ function Subtract() {
         <div className="tab-navigation">
             <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Subtract Plot</button>
             <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Salt Bridge Plot</button>
-            <button onClick={() => switchTab(2)} className={activeTab === 2 ? 'active-tab' : ''}>Distribution Graph</button>
         </div>
 
         <div className="tab-content">
@@ -228,9 +227,6 @@ function Subtract() {
             )}
             {activeTab === 1 && saltPlot && (
                 <img src={`data:image/png;base64,${saltPlot}`} alt="Salt Plot" className="centered-image" />
-            )}
-            {activeTab === 2 && distributionPlot && (
-                <img src={`data:image/png;base64,${distributionPlot}`} alt="Distribution Graph" className="centered-image" />
             )}
         </div>
 
