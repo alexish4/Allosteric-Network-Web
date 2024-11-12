@@ -65,12 +65,10 @@ def filter_by_residue_ids(df, common_residue_ids):
     
     return filtered_df
 
-def generate_salt_plot():
-    pdb_file1=('wt_sim.pdb')
+def generate_salt_plot(pdb_file1, pdb_file2):
     sys1 = pdb_to_dataframe(pdb_file1)
     sys1 = sys1.reset_index()
 
-    pdb_file2=('mut_sim.pdb')
     sys2 = pdb_to_dataframe(pdb_file2)
     sys2 = sys2.reset_index()
 
@@ -266,3 +264,5 @@ def generate_salt_plot():
     salt_plot_image = base64.b64encode(buffer.getvalue()).decode('utf8')
     buffer.close()
     plt.close()
+
+    return salt_plot_image

@@ -17,7 +17,7 @@ function Subtract() {
     const [pdbFile2, setPdbFile2] = useState(null);
     const [edgeFile, setEdgeFile] = useState(null);
     const [subtractionPlot, setsubtractionPlot] = useState(null);
-    const [filteredPlot, setfilteredPlot] = useState(null);
+    const [saltPlot, setSaltPlot] = useState(null);
     const [distributionPlot, setdistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showRenderOptions, setShowRenderOptions] = useState(false);
@@ -130,7 +130,7 @@ function Subtract() {
             const data = response.data;
             const plots = response.data;
             setsubtractionPlot(plots.calculated_matrix_image);
-            setfilteredPlot(plots.subtracted_distance_matrix_image);
+            setSaltPlot(plots.salt_plot_image);
             setdistributionPlot(plots.distribution_graph);
 
             render3dmol(data);
@@ -218,7 +218,7 @@ function Subtract() {
 
         <div className="tab-navigation">
             <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Subtract Plot</button>
-            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Filtered Matrix</button>
+            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Salt Plot</button>
             <button onClick={() => switchTab(2)} className={activeTab === 2 ? 'active-tab' : ''}>Distribution Graph</button>
         </div>
 
@@ -226,8 +226,8 @@ function Subtract() {
             {activeTab === 0 && subtractionPlot && (
                 <img src={`data:image/png;base64,${subtractionPlot}`} alt="Subtracted Matrix" className="centered-image" />
             )}
-            {activeTab === 1 && filteredPlot && (
-                <img src={`data:image/png;base64,${filteredPlot}`} alt="Filtered Matrix" className="centered-image" />
+            {activeTab === 1 && saltPlot && (
+                <img src={`data:image/png;base64,${saltPlot}`} alt="Salt Plot" className="centered-image" />
             )}
             {activeTab === 2 && distributionPlot && (
                 <img src={`data:image/png;base64,${distributionPlot}`} alt="Distribution Graph" className="centered-image" />
