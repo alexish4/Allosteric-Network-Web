@@ -1,22 +1,18 @@
 import MDAnalysis as mda
-from MDAnalysis.analysis.distances import self_distance_array
 from MDAnalysis.analysis import distances
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import squareform  # Import squareform from scipy
-from bokeh.plotting import figure, show
-from bokeh.models import HoverTool, ColorBar, LinearColorMapper
-from bokeh.io import output_notebook
-from bokeh.transform import linear_cmap
-from bokeh.models.tickers import BasicTicker
-from bokeh.models.formatters import PrintfTickFormatter
+
 import numpy as np
 
-import pytraj as pt
 import matplotlib.pyplot as plt
 import pandas as pd
 import io
 import base64
+import SubtractedCorrelationMatrix
+from flask import request
+import json
 
 def pdb_to_dataframe(pdb_file):
     """
@@ -64,6 +60,128 @@ def filter_by_residue_ids(df, common_residue_ids):
     filtered_df = df[df['Residue ID'].isin(common_residue_ids)]
     
     return filtered_df
+
+def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower_bound = 6.0):
+    # Load the CSV file
+    df = pd.read_csv(csv_file)
+    
+    # Determine cutoff
+    filtered_df = df.loc[
+        (df['Delta_Distance'] >= lower_bound) & 
+        (df['ChainID1'].isin(filtered_chains)) & 
+        (df['ChainID2'].isin(filtered_chains))
+    ]
+
+    if validated_ranges: # If user entered ranges
+        # Create a mask for the ranges by iterating over each chain and its range(s)
+        range_mask = False  # Start with an empty mask
+        
+        # Making sure format matches
+        first_chain_id = filtered_df['ChainID1'].iloc[0]
+        revert_format = False
+        if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
+            chain_mapping = {'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'}
+            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
+            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
+            revert_format = True
+
+        for chain, ranges in validated_ranges.items():
+            for r in ranges:
+                min_range, max_range = r
+                # Combine range mask with OR condition to include all ranges
+                range_mask |= (
+                    ((filtered_df['ChainID1'] == chain) & 
+                     (filtered_df['ResidueID1'] >= min_range) & 
+                     (filtered_df['ResidueID1'] <= max_range)) |
+                    ((filtered_df['ChainID2'] == chain) & 
+                     (filtered_df['ResidueID2'] >= min_range) & 
+                     (filtered_df['ResidueID2'] <= max_range))
+                )
+
+        # Include chains not in validated_ranges by using all residues for those chains
+        remaining_chains = set(filtered_chains) - set(validated_ranges.keys())
+        remaining_mask = (
+            (filtered_df['ChainID1'].isin(remaining_chains)) |
+            (filtered_df['ChainID2'].isin(remaining_chains))
+        )
+        filtered_df = filtered_df[range_mask | remaining_mask]
+        
+        if revert_format:
+            chain_mapping = {'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'}
+            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
+            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
+
+
+    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
+    
+    return residue_pairs
+
+def recalculate_from_new_cutoff_value():
+    pdb_file1 = request.files['pdb_file1']
+    pdb_file2 = request.files['pdb_file2']
+    edge_file = request.files.get('edge_file')
+
+    # Check if a file was submitted
+    submitted_edge_file = False
+    if edge_file and edge_file.filename != '':
+        submitted_edge_file = True
+        edge_file.save("Subtract_Files/edges_table.csv")
+    
+    file_to_render = "Subtract_Files/salt_bridge.csv"
+    if submitted_edge_file:
+        SubtractedCorrelationMatrix.filter_by_edge_file("Subtract_Files/saved_sub.csv", "Subtract_Files/edges_table.csv")
+        file_to_render = "Subtract_Files/filtered_edges.csv"
+
+    lower_bound = float(request.form['lower_bound'])
+
+    selected_chains = json.loads(request.form.get('selected_chains'))
+    chain_ranges = json.loads(request.form.get('chain_ranges'))
+
+    validated_ranges = {}
+    for chain, ranges_str in chain_ranges.items():
+        if ranges_str:
+            validated_ranges[chain] = SubtractedCorrelationMatrix.parse_ranges(ranges_str)
+    print(validated_ranges)
+
+    filtered_chains = []
+    if selected_chains.get('A'):
+        filtered_chains.append("A")
+        filtered_chains.append("PROA")
+    if selected_chains.get('B'):
+        filtered_chains.append("B")
+        filtered_chains.append("PROB")
+    if selected_chains.get('C'):
+        filtered_chains.append("C")
+        filtered_chains.append("PROC")
+    if selected_chains.get('D'):
+        filtered_chains.append("D")
+        filtered_chains.append("PROD")
+
+    pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
+    pdb_file2_path = 'Subtract_Files/pdb_file2.pdb'
+    pdb_file1.save(pdb_file1_path)
+    pdb_file2.save(pdb_file2_path)
+
+    u = mda.Universe(pdb_file1_path)
+
+    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
+    print(len(residue_pairs), " is length of residue pairs")
+    edge_list = SubtractedCorrelationMatrix.rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+
+    with open(pdb_file1_path, 'r') as file:
+        pdb_content = file.read()
+
+    # view_data = {
+    #     'file_content': file_content,
+    #     'edges': edge_list
+    # }
+
+    structure = {
+        'pdb_content' : pdb_content,
+        'edges' : edge_list
+    }
+
+    return structure
 
 def generate_salt_plot(pdb_file1, pdb_file2):
     sys1 = pdb_to_dataframe(pdb_file1)
@@ -264,5 +382,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     salt_plot_image = base64.b64encode(buffer.getvalue()).decode('utf8')
     buffer.close()
     plt.close()
+
+    sub_rm.to_csv('Subtract_Files/salt_bridge.csv',index=False)
 
     return salt_plot_image

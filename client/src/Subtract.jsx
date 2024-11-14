@@ -55,11 +55,21 @@ function Subtract() {
         }
 
         try {
-            const response = await axios.post('/api/rerender', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            let response;
+            if(activeTab == 0) { // subtract edges
+                response = await axios.post('/api/rerender', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+            }
+            else { // salt edges
+                response = await axios.post('/api/rerender', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+            }
             const data = response.data;
 
             if (data.edges.length === 0) {
@@ -217,8 +227,8 @@ function Subtract() {
         <button onClick={handleSubmit}>Submit</button>
 
         <div className="tab-navigation">
-            <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Subtract Plot</button>
-            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Salt Bridge Plot</button>
+            <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Pairwise Distances</button>
+            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Salt Bridge Distances</button>
         </div>
 
         <div className="tab-content">

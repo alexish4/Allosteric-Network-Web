@@ -14,13 +14,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import EnergyCode
 import Graph2D
 import SubtractedCorrelationMatrix
+import SaltBridgePlot
 import json
 import logging
 
 app=Flask(__name__)
 application=app
 CORS(app, resources={r"/api/*": {"origins": ["http://flowallostery.westernu.edu", "http://204.9.174.78", "http://localhost:5173"]}})
-logging.basicConfig(filename='/home/alexhernandez/Allosteric-Network/server/logfile.log', level=logging.INFO)
+logging.basicConfig(filename='/home/alexhernandez/Allosteric-Network/server/logfile.log', level=logging.ERROR)
 
 #387,388,389,389,390,391,392
 #328,329,334,338,378,348
@@ -47,6 +48,11 @@ def subtracted_matrix():
 @app.route('/api/rerender', methods=['POST'])
 def rerender():
     structure = SubtractedCorrelationMatrix.recalculate_from_new_cutoff_value()
+    return jsonify(structure)
+
+@app.route('/api/rerender-salt', methods=['POST'])
+def rerender_salt():
+    structure = SaltBridgePlot.recalculate_from_new_cutoff_value()
     return jsonify(structure)
 
 @app.route('/api/calculate', methods=['POST'])
