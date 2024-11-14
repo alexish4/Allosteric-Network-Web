@@ -363,18 +363,31 @@ def generate_salt_plot(pdb_file1, pdb_file2):
         'STD_MUT': merged_bmut['std']}
     sub=pd.DataFrame(sub)
 
-    sub_rm=sub.query('ResidueName1 != ResidueName2')
-    sub_rm['Res-pair']=sub_rm['ResidueName1'].astype(str)+'-'+sub_rm['ResidueName2'].astype(str)
-    sub_rm = sub_rm.query('`Res-pair` != "ARG-LYS" and `Res-pair` != "ASP-GLU"')
-    sub_rm = sub_rm.query('`Res-pair` != "LYS-ARG" and `Res-pair` != "GLU-ASP"')
+    fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
-    sub_rm.drop(['Res-pair'],axis=1,inplace=True)
+    sc1 = axs[0].scatter(merged_b['Index1'], merged_b['Index2'], c=merged_b['Distance'], cmap='viridis')
+    cbar1 = fig.colorbar(sc1, ax=axs[0])
+    cbar1.set_label('Z Value')
+    axs[0].set_xlabel('Index ID')
+    axs[0].set_ylabel('Index ID')
+    axs[0].set_title('WT-MUT Matrix Plot')
 
-    plt.scatter(sub_rm['Index1'], sub_rm['Index2'], c=sub_rm['Delta_Distance'], cmap='viridis')
-    plt.colorbar(label='Z Value')
-    plt.xlabel('Index ID')
-    plt.ylabel('Index ID')
-    plt.title('WT-MUT Matrix Plot')
+    # Second scatter plot
+    sc2 = axs[1].scatter(merged_bmut['Index1'], merged_bmut['Index2'], c=merged_bmut['Distance'], cmap='viridis')
+    cbar2 = fig.colorbar(sc2, ax=axs[1])
+    cbar2.set_label('Z Value')
+    axs[1].set_xlabel('Index ID')
+    axs[1].set_title('WT-MUT Matrix Plot')
+
+    # Third scatter plot
+    sc3 = axs[2].scatter(sub['Index1'], sub['Index2'], c=sub['Delta_Distance'], cmap='viridis')
+    cbar3 = fig.colorbar(sc3, ax=axs[2])
+    cbar3.set_label('Z Value')
+    axs[2].set_xlabel('Index ID')
+    axs[2].set_title('WT-MUT Matrix Plot')
+
+    # Adjust layout for better spacing between plots
+    plt.tight_layout()
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")
@@ -384,6 +397,33 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     plt.close()
 
     sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
+
+    sub_rm=sub.query('ResidueName1 != ResidueName2')
+    sub_rm['Res-pair']=sub_rm['ResidueName1'].astype(str)+'-'+sub_rm['ResidueName2'].astype(str)
+    sub_rm = sub_rm.query('`Res-pair` != "ARG-LYS" and `Res-pair` != "ASP-GLU"')
+    sub_rm = sub_rm.query('`Res-pair` != "LYS-ARG" and `Res-pair` != "GLU-ASP"')
+
+    sub_rm.drop(['Res-pair'],axis=1,inplace=True)
+
+    delta_distances = sub_rm['Delta_Distance']
+
+    # Calculate the number of bins using the square root choice
+    num_bins = int(np.ceil(np.sqrt(len(delta_distances))))
+
+    # Plot the distribution of filtered distances
+    plt.hist(delta_distances, bins=num_bins, edgecolor='black')
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.title(f'Distribution of Filtered Distances')
+
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format="png")
+    buffer.seek(0)
+    distribution_graph = base64.b64encode(buffer.getvalue()).decode('utf8')
+    buffer.close()
+    plt.close()
+
+    
     sub_rm.to_csv('Subtract_Files/salt_bridge.csv',index=False)
 
-    return salt_plot_image
+    return salt_plot_image, distribution_graph

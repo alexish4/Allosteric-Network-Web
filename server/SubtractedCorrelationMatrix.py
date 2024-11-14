@@ -466,7 +466,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     residue_ids = np.arange(1, sub.shape[0])  # Assuming residue IDs are 1 to N
 
     # Convert to a DataFrame if needed
-    df = pd.DataFrame(sub, index=residue_ids, columns=residue_ids)
+    df = pd.DataFrame(filtered_sub, index=residue_ids, columns=residue_ids)
 
     flattened_matrix = df.unstack().reset_index()  
     flattened_matrix.columns = ['Residue1', 'Residue2', 'Distance']
@@ -521,7 +521,7 @@ def get_plots_and_protein_structure():
     pdb_file2.save(pdb_file2_path)
 
     calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
-    salt_plot_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path)
+    salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
@@ -531,7 +531,8 @@ def get_plots_and_protein_structure():
     plots = {
         'calculated_matrix_image' : calculated_matrix_image,
         'salt_plot_image' : salt_plot_image,
-        'distribution_graph' : distribution_graph,
+        'subtract_distribution_graph' : distribution_graph,
+        'salt_distribution_graph' : salt_distribution_image,
         'pdb_content' : pdb_content,
         'edges' : edge_list
     }

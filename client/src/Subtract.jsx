@@ -1,4 +1,4 @@
-import { React, useState } from 'react';
+import { React, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Link, useLocation } from 'react-router-dom';
 import Home from './Home';
 import Allosteric from './Allosteric'; 
@@ -19,6 +19,8 @@ function Subtract() {
     const [subtractionPlot, setsubtractionPlot] = useState(null);
     const [saltPlot, setSaltPlot] = useState(null);
     const [distributionPlot, setdistributionPlot] = useState(null);
+    const [subtractDistributionPlot, setSubtractDistributionPlot] = useState(null);
+    const [saltDistributionPlot, setSaltDistributionPlot] = useState(null);
     const [activeTab, setActiveTab] = useState(0);
     const [showRenderOptions, setShowRenderOptions] = useState(false);
     const [lowerBound, setLowerBound] = useState('');
@@ -88,6 +90,12 @@ function Subtract() {
     // Function to handle tab switching
     const switchTab = (tabIndex) => {
         setActiveTab(tabIndex);
+        if(tabIndex == 0) {
+            setdistributionPlot(subtractDistributionPlot);
+        }
+        else {
+            setdistributionPlot(saltDistributionPlot);
+        }
     };
 
     const handlePdbFile1Change = (event) => {
@@ -141,7 +149,9 @@ function Subtract() {
             const plots = response.data;
             setsubtractionPlot(plots.calculated_matrix_image);
             setSaltPlot(plots.salt_plot_image);
-            setdistributionPlot(plots.distribution_graph);
+            setSubtractDistributionPlot(plots.subtract_distribution_graph);
+            setSaltDistributionPlot(plots.salt_distribution_graph);
+            setdistributionPlot(plots.subtractDistributionPlot);
 
             render3dmol(data);
             setShowRenderOptions(true);
@@ -215,6 +225,12 @@ function Subtract() {
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   
     }
+
+    useEffect(() => {
+        if (!distributionPlot && subtractDistributionPlot) {
+            setdistributionPlot(subtractDistributionPlot);
+        }
+    }, [subtractDistributionPlot, distributionPlot]);
 
     return (
     <div>
