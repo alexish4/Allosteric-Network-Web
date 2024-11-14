@@ -383,6 +383,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     buffer.close()
     plt.close()
 
+    sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
     sub_rm.to_csv('Subtract_Files/salt_bridge.csv',index=False)
 
     return salt_plot_image

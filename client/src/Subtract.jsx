@@ -64,7 +64,7 @@ function Subtract() {
                 });
             }
             else { // salt edges
-                response = await axios.post('/api/rerender', formData, {
+                response = await axios.post('/api/rerender-salt', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
                     },
