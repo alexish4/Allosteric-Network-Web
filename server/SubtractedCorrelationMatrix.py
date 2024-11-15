@@ -42,6 +42,12 @@ def pdb_to_dataframe(pdb_file):
     # Create a pandas DataFrame from the atom data
     df = pd.DataFrame(atom_data)
 
+
+    # Fixes weird bug
+    #df['Chain ID'] = df['Chain ID'].replace({'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'})
+    
+    
+    
     # Fixes weird bug
     #df['Chain ID'] = df['Chain ID'].replace({'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'})
     
@@ -78,15 +84,40 @@ def compute_pairwise_distances(df):
     """
     # Extract the coordinates (X, Y, Z)
     coordinates = df[['X', 'Y', 'Z']].values
+    residue_ids = df['Residue ID'].values
+    chain_ids = df['Chain ID'].values
+    new_index = df['NewIndex'].values
 
     # Calculate pairwise distances using broadcasting
     diff = coordinates[:, np.newaxis, :] - coordinates[np.newaxis, :, :]
     distances = np.sqrt(np.sum(diff ** 2, axis=-1))
 
     # Create a DataFrame for the distance matrix with proper indexing
-    distance_df = pd.DataFrame(distances, index=df['NewIndex'], columns=df['NewIndex'])
+    #distance_df = pd.DataFrame(distances, index=df['NewIndex'], columns=df['NewIndex'])
+
+    # Initialize an empty list to store the results
+    results = []
+
+    # Iterate over the pairs of residues and chains
+    for i in range(len(df)):
+        for j in range(i + 1, len(df)):
+            # Collect the necessary information
+            residue_id1 = residue_ids[i]
+            residue_id2 = residue_ids[j]
+            chain_id1 = chain_ids[i]
+            chain_id2 = chain_ids[j]
+            distance = distances[i, j]
+            new_index1 = new_index[i]
+            new_index2 = new_index[j]
+
+            # Append the information as a tuple
+            results.append([residue_id1, residue_id2, chain_id1, chain_id2, distance, new_index1, new_index2])
+
+    # Create a DataFrame from the results
+    distance_df = pd.DataFrame(results, columns=['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance', 'Index1', 'Index2'])
 
     return distance_df
+    
 
 def parse_ranges(ranges_str):
         ranges = []
@@ -268,7 +299,7 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
     
     # Determine cutoff
     filtered_df = df.loc[
-        (df['Distance'] >= lower_bound) & 
+        (df['Delta_Distance'] >= lower_bound) & 
         (df['ChainID1'].isin(filtered_chains)) & 
         (df['ChainID2'].isin(filtered_chains))
     ]
@@ -313,7 +344,7 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
             filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
 
 
-    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance']].values.tolist()
+    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
     
     return residue_pairs
 
@@ -364,31 +395,48 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     matrixA=compute_pairwise_distances(filtered_cb1)
     matrixB=compute_pairwise_distances(filtered_cb2)
-    sub=np.abs(matrixA-matrixB)
+    #sub=np.abs(matrixA-matrixB)
 
-    if sub.shape == matrixB.shape:
-        print("The matrices have the same shape.")
-    else:
-        print("The matrices have different shapes.")
+    sub = {'Index1': matrixA['Index1'],
+    'Index2':matrixA['Index2'],
+    'Distance_wt':matrixA['Distance'],
+    'Distance_mut':matrixB['Distance'],
+    'Delta_Distance':np.abs(matrixA['Distance']-matrixB['Distance']),
+    #'ResidueName1':matrixA['ResidueName1'],
+    'ResidueID1':matrixA['ResidueID1'],
+    'ChainID1':matrixA['ChainID1'],
+    #'ResidueName2':matrixA['ResidueName2'],
+    'ResidueID2':matrixA['ResidueID2'],
+    'ChainID2':matrixA['ChainID2']}
+    sub=pd.DataFrame(sub)
 
-    # Create a mask where both matrixA and matrixB have values less than 15
-    mask = (matrixA < 15) & (matrixB < 15)
+    # if sub.shape == matrixB.shape:
+    #     print("The matrices have the same shape.")
+    # else:
+    #     print("The matrices have different shapes.")
 
-    # Apply the mask to sub, setting elements to NaN where the condition is not met
-    filtered_sub = sub.where(mask)
+    # # Create a mask where both matrixA and matrixB have values less than 15
+    # mask = (matrixA < 15) & (matrixB < 15)
 
-    # Alternatively, if you want to remove rows and columns where all values are NaN
-    filtered_sub = filtered_sub.dropna(how='all').dropna(axis=1, how='all')
+    # # Apply the mask to sub, setting elements to NaN where the condition is not met
+    # filtered_sub = sub.where(mask)
+
+    # # Alternatively, if you want to remove rows and columns where all values are NaN
+    # filtered_sub = filtered_sub.dropna(how='all').dropna(axis=1, how='all')
+
+    filtered_sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
 
     print(len(filtered_sub))
 
-    save_edges_from_sub(filtered_sub, hashmap_cb1)
+    # save_edges_from_sub(filtered_sub, hashmap_cb1)
+    filtered_sub.to_csv("Subtract_Files/saved_sub1.csv", index=False)
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
     # Plot matrix1
-    cax1 = axs[0].imshow(matrixA, cmap="viridis", interpolation="nearest")
+    # cax1 = axs[0].imshow(matrixA, cmap="viridis", interpolation="nearest")
+    cax1 = axs[0].scatter(matrixA['Index1'], matrixA['Index2'], c=matrixA['Distance'], cmap='viridis')
     fig.colorbar(cax1, ax=axs[0], label="Distance (Å)")
     axs[0].set_title("WT")
     axs[0].set_xlabel("Residue Index")
@@ -396,15 +444,17 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     axs[0].invert_yaxis()  # Invert y-axis as before
 
     # Plot matrix2
-    cax2 = axs[1].imshow(matrixB, cmap="viridis", interpolation="nearest")
-    fig.colorbar(cax2, ax=axs[1], label="Distance (Å)")
+    #cax2 = axs[1].imshow(matrixB, cmap="viridis", interpolation="nearest")
+    sc2 = axs[1].scatter(matrixB['Index1'], matrixB['Index2'], c=matrixB['Distance'], cmap='viridis')
+    fig.colorbar(sc2, ax=axs[1], label="Distance (Å)")
     axs[1].set_title("Mut")
     axs[1].set_xlabel("Residue Index")
     axs[1].invert_yaxis()  # Invert y-axis as before
 
     # Plot the thresholded matrix (result)
-    cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
-    fig.colorbar(cax3, ax=axs[2], label="Delta Distance (Å)")
+    #cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
+    sc3 = axs[2].scatter(sub['Index1'], sub['Index2'], c=sub['Delta_Distance'], cmap='viridis')
+    fig.colorbar(sc3, ax=axs[2], label="Delta Distance (Å)")
     axs[2].set_title("Subtracted Wt and Mut, Delta Distance")
     axs[2].set_xlabel("Residue Index")
     axs[2].invert_yaxis()  # Invert y-axis as before
@@ -419,29 +469,9 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     buffer.close()
     plt.close()
 
-    ## show the top 5 largest distance from subtracted matrix ## 
-    residue_ids = np.arange(1, sub.shape[0])  # Assuming residue IDs are 1 to N
-
-    # Convert to a DataFrame if needed
-    df = pd.DataFrame(filtered_sub, index=residue_ids, columns=residue_ids)
-
-    flattened_matrix = df.unstack().reset_index()  
-    flattened_matrix.columns = ['Residue1', 'Residue2', 'Distance']
-
-    # Keep only unique pairs (Residue1 < Residue2) to avoid duplicates 
-    unique_pairs = flattened_matrix[flattened_matrix['Residue1'] < flattened_matrix['Residue2']]
-
-    # filter distance within limitation 
-    filter_distance=unique_pairs.query('Distance >3 & Distance <8')
-    print(filter_distance.head(), " is head")
-    print(filter_distance.tail(), " is tail")
-    #print (filter_distance)
-    # Sort by distance to get the top 5 largest values
-    top_5 = filter_distance.nlargest(5, 'Distance')
-
     # Extract distances as a 1D array
     #distances = matrixA.values
-    distances = unique_pairs['Distance'].values
+    distances = filtered_sub['Delta_Distance'].values
 
     # Calculate the number of bins using the square root choice
     num_bins = int(np.ceil(np.sqrt(len(distances))))
@@ -458,6 +488,8 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     distribution_graph = base64.b64encode(buffer.getvalue()).decode('utf8')
     buffer.close()
     plt.close()
+
+    print(filtered_sub, " is filtered sub")
 
     return calculated_matrix_image, distribution_graph
 
