@@ -174,8 +174,8 @@ def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, resi
     edge_list = []
 
     for resID1, chainID1, resID2 , chainID2, distance in residue_pairs:
-        residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1}")
-        residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2}")
+        residue1 = pubStrucUniverse.select_atoms(f"resid {resID1} and segid {chainID1} and name CA")
+        residue2 = pubStrucUniverse.select_atoms(f"resid {resID2} and segid {chainID2} and name CA")
 
         empty_residue = False
 
