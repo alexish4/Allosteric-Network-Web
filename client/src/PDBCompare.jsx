@@ -11,7 +11,7 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
 
 import MyImage from "./assets/Subtract-intro.png";
 
-function Subtract() {
+function PDBCompare() {
 
     const [pdbFile1, setPdbFile1] = useState(null);
     const [pdbFile2, setPdbFile2] = useState(null);
@@ -24,6 +24,7 @@ function Subtract() {
     const [activeTab, setActiveTab] = useState(0);
     const [showRenderOptions, setShowRenderOptions] = useState(false);
     const [lowerBound, setLowerBound] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const [selectedChains, setSelectedChains] = useState({
         A: true,
         B: true,
@@ -138,7 +139,7 @@ function Subtract() {
         formData.append('pdb_file1', pdbFile1);
         formData.append('pdb_file2', pdbFile2);
 
-        console.log("Test")
+        setIsLoading(true);
         try {
             const response = await axios.post('/api/subtract', formData, {
                 headers: {
@@ -159,6 +160,8 @@ function Subtract() {
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the PDB files.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -189,7 +192,7 @@ function Subtract() {
                 // Show the tooltip when hovering
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
-                tooltip.style.top = `${event.clientY + 500}px`;
+                tooltip.style.top = `${event.clientY + 1260}px`;
 
                 // Set the tooltip content with edge label
                 tooltip.innerHTML = `Edge Label: ${edge.label}`;
@@ -234,13 +237,15 @@ function Subtract() {
 
     return (
     <div>
-        <h1>Compare Residue-Residue Distance Change</h1>
+        <h1>PDB Pair Compare</h1>
         <img src={MyImage} alt="Residue-Residue Distance" style={{ maxWidth: "100%", height: "auto", marginTop: "20px" }} />
         <br></br>
 
         <input type="file" onChange={handlePdbFile1Change} />
         <input type="file" onChange={handlePdbFile2Change} />
         <button onClick={handleSubmit}>Submit</button>
+
+        {isLoading && <p>Loading, please wait...</p>}
 
         <div className="tab-navigation">
             <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Pairwise Distances</button>
@@ -320,4 +325,4 @@ function Subtract() {
     );
 }
 
-export default Subtract;
+export default PDBCompare;
