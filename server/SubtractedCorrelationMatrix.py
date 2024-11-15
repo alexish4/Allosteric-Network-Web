@@ -341,11 +341,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # Find the common residue IDs between both PDB files
     common_residue_ids = np.intersect1d(residue_ids_1, residue_ids_2)
 
-    # Print or return the common residues
-    print("Common Residue IDs between the two PDB files:", common_residue_ids)
-    # output_file = "common_residues.dat"
-    # np.savetxt(output_file, common_residue_ids, fmt='%d')
-
     # Filter df1 and df2 for common residue IDs
     # extract CB/GLY CA data for each residue
     filtered_df1 = filter_by_residue_ids(sys1, common_residue_ids)
@@ -354,13 +349,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     filtered_df2 = filter_by_residue_ids(sys2, common_residue_ids)
     filtered_cb2 = filtered_df2.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
-    # Reset the index and keep it as a column
-    # Display the filtered DataFrames
-    print("Filtered df1 with common residue IDs:")
-    print(filtered_df1)
-
-    print("\nFiltered df2 with common residue IDs:")
-    print(filtered_df2)
 
     # re-index, RESIDUE ID and CHAIN ID ARE STILL THE SAME VALUES AFTER THIS
     filtered_cb1['NewIndex']=range(0,len(filtered_cb1))
@@ -431,37 +419,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     buffer.close()
     plt.close()
 
-    # save WT and Mut CB distance paris to a dataframe table
-    filtered_cb1.to_csv('WT_CB_distance_pairs.csv',index=False)
-    filtered_cb2.to_csv('Mut_CB_distance_pairs.csv',index=False)
-
-    # filter out the distance between 5 to 10A from subtracted matrix
-    threshold_min = 3
-    threshold_max = 8
-
-    # Set all values below or equal to 5 to NaN (or 0 if you prefer)
-    sub_thresholded = np.where((sub > threshold_min) & (sub < threshold_max), sub, np.nan)  # Use np.nan for better visual distinction in the heatmap
-
-    print(sub_thresholded, " is thresh")
-
-    num_residues = sub.shape[0]
-    print ("number residue:",num_residues)
-    # Plot the thresholded matrix
-    plt.imshow(sub_thresholded, cmap="viridis", interpolation="nearest")
-    plt.colorbar(label="Distance (Å)")
-    plt.title("Subtracted Distance Matrix (3<x<8A)")
-    plt.xlabel("Residue Index")
-    plt.ylabel("Residue Index")
-    # Invert y-axis as before
-    plt.gca().invert_yaxis()
-    
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format="png")
-    buffer.seek(0)
-    subtracted_distance_matrix_image = base64.b64encode(buffer.getvalue()).decode('utf8')
-    buffer.close()
-    plt.close()
-
     ## show the top 5 largest distance from subtracted matrix ## 
     residue_ids = np.arange(1, sub.shape[0])  # Assuming residue IDs are 1 to N
 
@@ -502,13 +459,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     buffer.close()
     plt.close()
 
-    # Show the result
-    print(top_5)
-
-    #save to a dataframe table
-    top_5.to_csv('Top5_distance_pairs.csv',index=False)
-
-    return calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph
+    return calculated_matrix_image, distribution_graph
 
 
 def get_plots_and_protein_structure():
@@ -520,7 +471,7 @@ def get_plots_and_protein_structure():
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
-    calculated_matrix_image, subtracted_distance_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
+    calculated_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
     salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path)
 
     with open(pdb_file1_path, 'r') as file:
