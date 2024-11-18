@@ -430,14 +430,15 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # save_edges_from_sub(filtered_sub, hashmap_cb1)
     filtered_sub.to_csv("Subtract_Files/saved_sub1.csv", index=False)
+    print("saved to csv")
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
     # Plot matrix1
     # cax1 = axs[0].imshow(matrixA, cmap="viridis", interpolation="nearest")
-    cax1 = axs[0].scatter(matrixA['Index1'], matrixA['Index2'], c=matrixA['Distance'], cmap='viridis')
-    fig.colorbar(cax1, ax=axs[0], label="Distance (Å)")
+    sc1 = axs[0].imshow(matrixA.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
+    fig.colorbar(sc1, ax=axs[0], label="Distance (Å)")
     axs[0].set_title("WT")
     axs[0].set_xlabel("Residue Index")
     axs[0].set_ylabel("Residue Index")
@@ -445,7 +446,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot matrix2
     #cax2 = axs[1].imshow(matrixB, cmap="viridis", interpolation="nearest")
-    sc2 = axs[1].scatter(matrixB['Index1'], matrixB['Index2'], c=matrixB['Distance'], cmap='viridis')
+    sc2 = axs[1].imshow(matrixB.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
     fig.colorbar(sc2, ax=axs[1], label="Distance (Å)")
     axs[1].set_title("Mut")
     axs[1].set_xlabel("Residue Index")
@@ -453,7 +454,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot the thresholded matrix (result)
     #cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
-    sc3 = axs[2].scatter(sub['Index1'], sub['Index2'], c=sub['Delta_Distance'], cmap='viridis')
+    sc3 = axs[2].imshow(sub.pivot('Index1', 'Index2', 'Delta_Distance'), cmap='viridis', aspect='auto')
     fig.colorbar(sc3, ax=axs[2], label="Delta Distance (Å)")
     axs[2].set_title("Subtracted Wt and Mut, Delta Distance")
     axs[2].set_xlabel("Residue Index")
