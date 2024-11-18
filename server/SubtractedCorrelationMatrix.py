@@ -114,7 +114,7 @@ def compute_pairwise_distances(df):
             results.append([residue_id1, residue_id2, chain_id1, chain_id2, distance, new_index1, new_index2])
 
     # Create a DataFrame from the results
-    distance_df = pd.DataFrame(results, columns=['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Distance', 'Index1', 'Index2'])
+    distance_df = pd.DataFrame(results, columns=['ResidueID1', 'ResidueID2', 'ChainID1', 'ChainID2', 'Distance', 'Index1', 'Index2'])
 
     return distance_df
     
@@ -145,9 +145,9 @@ def recalculate_from_new_cutoff_value():
         submitted_edge_file = True
         edge_file.save("Subtract_Files/edges_table.csv")
     
-    file_to_render = "Subtract_Files/saved_sub.csv"
+    file_to_render = "Subtract_Files/saved_sub1.csv"
     if submitted_edge_file:
-        filter_by_edge_file("Subtract_Files/saved_sub.csv", "Subtract_Files/edges_table.csv")
+        filter_by_edge_file("Subtract_Files/saved_sub1.csv", "Subtract_Files/edges_table.csv")
         file_to_render = "Subtract_Files/filtered_edges.csv"
 
     lower_bound = float(request.form['lower_bound'])
@@ -385,14 +385,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     filtered_cb1['NewIndex']=range(0,len(filtered_cb1))
     filtered_cb2['NewIndex']=range(0,len(filtered_cb2))
 
-    # Create hashmaps for filtered_cb1 and filtered_cb2 to return Residue ID and Chain ID from NewIndex
-    hashmap_cb1 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb1.iterrows()}
-    hashmap_cb2 = {row['NewIndex']: (row['Residue ID'], row['Chain ID']) for _, row in filtered_cb2.iterrows()}
-
-    reverse_hashmap_cb1 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb1.iterrows()}
-    reverse_hashmap_cb2 = {(row['Residue ID'], row['Chain ID']): row['NewIndex'] for _, row in filtered_cb2.iterrows()}
-
-
     matrixA=compute_pairwise_distances(filtered_cb1)
     matrixB=compute_pairwise_distances(filtered_cb2)
     #sub=np.abs(matrixA-matrixB)
@@ -409,20 +401,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     'ResidueID2':matrixA['ResidueID2'],
     'ChainID2':matrixA['ChainID2']}
     sub=pd.DataFrame(sub)
-
-    # if sub.shape == matrixB.shape:
-    #     print("The matrices have the same shape.")
-    # else:
-    #     print("The matrices have different shapes.")
-
-    # # Create a mask where both matrixA and matrixB have values less than 15
-    # mask = (matrixA < 15) & (matrixB < 15)
-
-    # # Apply the mask to sub, setting elements to NaN where the condition is not met
-    # filtered_sub = sub.where(mask)
-
-    # # Alternatively, if you want to remove rows and columns where all values are NaN
-    # filtered_sub = filtered_sub.dropna(how='all').dropna(axis=1, how='all')
 
     filtered_sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
 
@@ -442,7 +420,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     axs[0].set_title("WT")
     axs[0].set_xlabel("Residue Index")
     axs[0].set_ylabel("Residue Index")
-    axs[0].invert_yaxis()  # Invert y-axis as before
 
     # Plot matrix2
     #cax2 = axs[1].imshow(matrixB, cmap="viridis", interpolation="nearest")
@@ -450,7 +427,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     fig.colorbar(sc2, ax=axs[1], label="Distance (Å)")
     axs[1].set_title("Mut")
     axs[1].set_xlabel("Residue Index")
-    axs[1].invert_yaxis()  # Invert y-axis as before
 
     # Plot the thresholded matrix (result)
     #cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
@@ -458,7 +434,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     fig.colorbar(sc3, ax=axs[2], label="Delta Distance (Å)")
     axs[2].set_title("Subtracted Wt and Mut, Delta Distance")
     axs[2].set_xlabel("Residue Index")
-    axs[2].invert_yaxis()  # Invert y-axis as before
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
