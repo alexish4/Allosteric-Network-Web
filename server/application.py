@@ -17,6 +17,7 @@ import SubtractedCorrelationMatrix
 import SaltBridgePlot
 import json
 import logging
+import PDBCompareMethods
 
 app=Flask(__name__)
 application=app
@@ -54,6 +55,10 @@ def rerender():
 def rerender_salt():
     structure = SaltBridgePlot.recalculate_from_new_cutoff_value()
     return jsonify(structure)
+
+@app.route('/api/extract_chains', methods=['POST'])
+def extract_chains_from_pdb():
+    return PDBCompareMethods.extract_chains()
 
 @app.route('/api/calculate', methods=['POST'])
 def compute_flow_betweenness():

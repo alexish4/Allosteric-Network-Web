@@ -25,18 +25,8 @@ function PDBCompare() {
     const [showRenderOptions, setShowRenderOptions] = useState(false);
     const [lowerBound, setLowerBound] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedChains, setSelectedChains] = useState({
-        A: true,
-        B: true,
-        C: true,
-        D: true,
-    });
-    const [chainRanges, setChainRanges] = useState({
-        A: '',
-        B: '',
-        C: '',
-        D: ''
-    });
+    const [selectedChains, setSelectedChains] = useState({});
+    const [chainRanges, setChainRanges] = useState({});
     const [edgesTable, setEdgesTable] = useState([]);
 
     // Handle button click
@@ -136,13 +126,35 @@ function PDBCompare() {
 
     const handleSubmit = async () => {
         if (!pdbFile1 || !pdbFile2) {
-        alert('Please select both PDB files.');
-        return;
+            alert('Please select both PDB files.');
+            return;
         }
 
         const formData = new FormData();
         formData.append('pdb_file1', pdbFile1);
         formData.append('pdb_file2', pdbFile2);
+
+        try {
+            const chain_response = await axios.post('/api/extract_chains', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            const initialSelectedChains = {};
+            console.log(chain_response.data, "Chain response from backend");
+            const chain_data = chain_response.data;
+            const chains = chain_data.chains;
+            chains.forEach(chain => {
+                initialSelectedChains[chain] = true;
+            });
+
+            setSelectedChains(initialSelectedChains);
+            console.log(initialSelectedChains, " are the selected chains");
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Chain Format Issue');
+        }
 
         setIsLoading(true);
         try {
@@ -197,7 +209,7 @@ function PDBCompare() {
                 // Show the tooltip when hovering
                 tooltip.style.display = 'block';
                 tooltip.style.left = `${event.clientX}px`;  // Position tooltip near mouse cursor
-                tooltip.style.top = `${event.clientY + 1260}px`;
+                tooltip.style.top = `${event.clientY + window.scrollY}px`;
 
                 // Set the tooltip content with edge label
                 tooltip.innerHTML = `Edge Label: ${edge.label}`;
@@ -238,7 +250,8 @@ function PDBCompare() {
         if (!distributionPlot && subtractDistributionPlot) {
             setdistributionPlot(subtractDistributionPlot);
         }
-    }, [subtractDistributionPlot, distributionPlot]);
+        console.log(selectedChains, " are the selected chains");
+    }, [subtractDistributionPlot, distributionPlot, chainRanges]);
 
     return (
     <div>
@@ -276,7 +289,7 @@ function PDBCompare() {
                 </div> */}
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <h3>Select Chains and Enter Ranges:</h3>
-                    {['A', 'B', 'C', 'D'].map(chain => (
+                    {Object.keys(selectedChains).map(chain => (
                         <div key={chain} style={{ marginBottom: '20px' }}>
                             <label>
                                 <input

@@ -1,5 +1,7 @@
 import MDAnalysis as mda
 import pandas as pd
+from flask import request, jsonify
+from Bio.PDB import PDBParser
 
 def pdb_to_dataframe(pdb_file):
     """
@@ -137,3 +139,23 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
     
     return residue_pairs, filtered_df
+
+def extract_chains():
+    try:
+        pdb_file1 = request.files['pdb_file1']
+
+        pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
+        pdb_file1.save(pdb_file1_path)
+
+        u = mda.Universe(pdb_file1_path)
+            
+        # Extract unique chain IDs
+        chain_ids = u.atoms.segids  # Chain IDs are stored in 'segids'
+        unique_chain_ids = sorted(set(chain_ids))  # Ensure they are unique and sorted
+
+        print(unique_chain_ids)
+
+        return jsonify({'chains': unique_chain_ids}), 200
+    except Exception as e:
+        # Handle errors gracefully and provide feedback
+        return jsonify({'error': str(e)}), 500
