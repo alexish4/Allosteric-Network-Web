@@ -58,19 +58,7 @@ def recalculate_from_new_cutoff_value():
             validated_ranges[chain] = PDBCompareMethods.parse_ranges(ranges_str)
     print(validated_ranges)
 
-    filtered_chains = []
-    if selected_chains.get('A'):
-        filtered_chains.append("A")
-        filtered_chains.append("PROA")
-    if selected_chains.get('B'):
-        filtered_chains.append("B")
-        filtered_chains.append("PROB")
-    if selected_chains.get('C'):
-        filtered_chains.append("C")
-        filtered_chains.append("PROC")
-    if selected_chains.get('D'):
-        filtered_chains.append("D")
-        filtered_chains.append("PROD")
+    filtered_chains = [chain for chain, is_selected in selected_chains.items() if is_selected]
 
     pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
     pdb_file2_path = 'Subtract_Files/pdb_file2.pdb'

@@ -99,15 +99,6 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
     if validated_ranges: # If user entered ranges
         # Create a mask for the ranges by iterating over each chain and its range(s)
         range_mask = False  # Start with an empty mask
-        
-        # Making sure format matches
-        first_chain_id = filtered_df['ChainID1'].iloc[0]
-        revert_format = False
-        if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
-            chain_mapping = {'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'}
-            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
-            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
-            revert_format = True
 
         for chain, ranges in validated_ranges.items():
             for r in ranges:
@@ -129,11 +120,6 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
             (filtered_df['ChainID2'].isin(remaining_chains))
         )
         filtered_df = filtered_df[range_mask | remaining_mask]
-        
-        if revert_format:
-            chain_mapping = {'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'}
-            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
-            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
 
 
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
