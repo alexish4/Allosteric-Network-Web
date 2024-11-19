@@ -13,28 +13,7 @@ import base64
 import SubtractedCorrelationMatrix
 from flask import request
 import json
-
-def pdb_to_dataframe(pdb_file):
-    """
-    Load a PDB file using MDAnalysis and convert key atom information to a pandas DataFrame.
-    """
-    u = mda.Universe(pdb_file)
-    
-    # Extract atom-related data: atom name, residue name, residue ID, and chain ID
-    atom_data = {
-        'Atom Name': u.atoms.names,
-        'Residue Name': u.atoms.resnames,
-        'Residue ID': u.atoms.resids,
-        'Chain ID': u.atoms.segids,
-        'X': u.atoms.positions[:, 0],
-        'Y': u.atoms.positions[:, 1],
-        'Z': u.atoms.positions[:, 2],
-    }
-    
-    # Create a pandas DataFrame from the atom data
-    df = pd.DataFrame(atom_data)
-    
-    return df
+import PDBCompareMethods
 
 def get_residue_ids(pdb_file):
     """
@@ -51,70 +30,6 @@ def get_residue_ids(pdb_file):
 
     residue_ids = residues.resids  # Extract the residue IDs
     return residue_ids
-
-def filter_by_residue_ids(df, common_residue_ids):
-    """
-    Filters the DataFrame to include only rows with Residue IDs that are in the common_residue_ids list.
-    """
-    # Filter the DataFrame for rows where the 'Residue ID' is in the list of common residue IDs
-    filtered_df = df[df['Residue ID'].isin(common_residue_ids)]
-    
-    return filtered_df
-
-def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower_bound = 6.0):
-    # Load the CSV file
-    df = pd.read_csv(csv_file)
-    
-    # Determine cutoff
-    filtered_df = df.loc[
-        (df['Delta_Distance'] >= lower_bound) & 
-        (df['ChainID1'].isin(filtered_chains)) & 
-        (df['ChainID2'].isin(filtered_chains))
-    ]
-
-    if validated_ranges: # If user entered ranges
-        # Create a mask for the ranges by iterating over each chain and its range(s)
-        range_mask = False  # Start with an empty mask
-        
-        # Making sure format matches
-        first_chain_id = filtered_df['ChainID1'].iloc[0]
-        revert_format = False
-        if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
-            chain_mapping = {'PROA': 'A', 'PROB': 'B', 'PROC': 'C', 'PROD': 'D'}
-            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
-            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
-            revert_format = True
-
-        for chain, ranges in validated_ranges.items():
-            for r in ranges:
-                min_range, max_range = r
-                # Combine range mask with OR condition to include all ranges
-                range_mask |= (
-                    ((filtered_df['ChainID1'] == chain) & 
-                     (filtered_df['ResidueID1'] >= min_range) & 
-                     (filtered_df['ResidueID1'] <= max_range)) |
-                    ((filtered_df['ChainID2'] == chain) & 
-                     (filtered_df['ResidueID2'] >= min_range) & 
-                     (filtered_df['ResidueID2'] <= max_range))
-                )
-
-        # Include chains not in validated_ranges by using all residues for those chains
-        remaining_chains = set(filtered_chains) - set(validated_ranges.keys())
-        remaining_mask = (
-            (filtered_df['ChainID1'].isin(remaining_chains)) |
-            (filtered_df['ChainID2'].isin(remaining_chains))
-        )
-        filtered_df = filtered_df[range_mask | remaining_mask]
-        
-        if revert_format:
-            chain_mapping = {'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'}
-            filtered_df['ChainID1'] = filtered_df['ChainID1'].replace(chain_mapping)
-            filtered_df['ChainID2'] = filtered_df['ChainID2'].replace(chain_mapping)
-
-
-    residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
-    
-    return residue_pairs, filtered_df
 
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
@@ -140,7 +55,7 @@ def recalculate_from_new_cutoff_value():
     validated_ranges = {}
     for chain, ranges_str in chain_ranges.items():
         if ranges_str:
-            validated_ranges[chain] = SubtractedCorrelationMatrix.parse_ranges(ranges_str)
+            validated_ranges[chain] = PDBCompareMethods.parse_ranges(ranges_str)
     print(validated_ranges)
 
     filtered_chains = []
@@ -164,9 +79,9 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs, salt_table = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
+    residue_pairs, salt_table = PDBCompareMethods.create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
     print(len(residue_pairs), " is length of residue pairs")
-    edge_list = SubtractedCorrelationMatrix.rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
+    edge_list = PDBCompareMethods.rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
@@ -182,10 +97,10 @@ def recalculate_from_new_cutoff_value():
     return structure
 
 def generate_salt_plot(pdb_file1, pdb_file2):
-    sys1 = pdb_to_dataframe(pdb_file1)
+    sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
     sys1 = sys1.reset_index()
 
-    sys2 = pdb_to_dataframe(pdb_file2)
+    sys2 = PDBCompareMethods.pdb_to_dataframe(pdb_file2)
     sys2 = sys2.reset_index()
 
     u_wt=mda.Universe(pdb_file1, pdb_file1)
@@ -198,7 +113,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     # Find the common residue IDs between both PDB files
     common_residue_ids = np.intersect1d(residue_ids_1, residue_ids_2)
 
-    filtered_df1 = filter_by_residue_ids(sys1, common_residue_ids)
+    filtered_df1 = PDBCompareMethods.filter_by_residue_ids(sys1, common_residue_ids)
 
     filtered_cb1 = filtered_df1.query(
         '(`Atom Name` == "CZ" & `Residue Name` == "ARG") | '
@@ -208,7 +123,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     )
 
 
-    filtered_df2 = filter_by_residue_ids(sys2, common_residue_ids)
+    filtered_df2 = PDBCompareMethods.filter_by_residue_ids(sys2, common_residue_ids)
     filtered_cb2 = filtered_df2.query(
         '(`Atom Name` == "CZ" & `Residue Name` == "ARG") | '
         '(`Atom Name` == "NZ" & `Residue Name` == "LYS") | '
