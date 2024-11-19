@@ -114,7 +114,7 @@ def create_residue_pairs_list(csv_file, filtered_chains, validated_ranges, lower
 
     residue_pairs = filtered_df[['ResidueID1', 'ChainID1', 'ResidueID2', 'ChainID2', 'Delta_Distance']].values.tolist()
     
-    return residue_pairs
+    return residue_pairs, filtered_df
 
 def recalculate_from_new_cutoff_value():
     pdb_file1 = request.files['pdb_file1']
@@ -164,21 +164,19 @@ def recalculate_from_new_cutoff_value():
 
     u = mda.Universe(pdb_file1_path)
 
-    residue_pairs = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
+    residue_pairs, salt_table = create_residue_pairs_list(file_to_render, filtered_chains, validated_ranges, lower_bound)
     print(len(residue_pairs), " is length of residue pairs")
     edge_list = SubtractedCorrelationMatrix.rerender_edgelist_from_mda_universe_and_residue_pairs(u, residue_pairs)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()
 
-    # view_data = {
-    #     'file_content': file_content,
-    #     'edges': edge_list
-    # }
+    print(salt_table.columns, " is salt table columns")
 
     structure = {
         'pdb_content' : pdb_content,
-        'edges' : edge_list
+        'edges' : edge_list,
+        'table' : salt_table.to_json(orient='records') 
     }
 
     return structure

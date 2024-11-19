@@ -37,6 +37,7 @@ function PDBCompare() {
         C: '',
         D: ''
     });
+    const [edgesTable, setEdgesTable] = useState([]);
 
     // Handle button click
     const handleRerender = async () => {
@@ -74,6 +75,10 @@ function PDBCompare() {
                 });
             }
             const data = response.data;
+            const parsedTable = JSON.parse(data.table);
+            console.log('Parsed table data:', parsedTable);
+
+            setEdgesTable(parsedTable);
 
             if (data.edges.length === 0) {
                 // Show message if edges length is 0
@@ -319,6 +324,36 @@ function PDBCompare() {
                 />
             )}
         </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Index1</th>
+                    <th>Index2</th>
+                    <th>Distance Pdb1</th>
+                    <th>Distance Pdb2</th>
+                    <th>Delta Distance</th>
+                    <th>ResidueID1</th>
+                    <th>ChainID1</th>
+                    <th>ResidueID2</th>
+                    <th>ChainID2</th>
+                </tr>
+            </thead>
+            <tbody>
+                {edgesTable.map((row, index) => (
+                    <tr key={index}>
+                        <td>{row.Index1}</td>
+                        <td>{row.Index2}</td>
+                        <td>{row.Distance_wt}</td>
+                        <td>{row.Distance_mut}</td>
+                        <td>{row.Delta_Distance}</td>
+                        <td>{row.ResidueID1}</td>
+                        <td>{row.ChainID1}</td>
+                        <td>{row.ResidueID2}</td>
+                        <td>{row.ChainID2}</td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
 
     </div>
 
