@@ -365,7 +365,7 @@ function PDBCompare() {
                 <tr>
                     <th>Dist-Pdb1</th>
                     <th>Dist-Pdb2</th>
-                    <th>∆-Dist</th>
+                    <th>∆-Dist(Å)</th>
                     <th>ResID1</th>
                     <th>ChainID1</th>
                     <th>ResID2</th>
@@ -375,9 +375,9 @@ function PDBCompare() {
             <tbody>
                 {edgesTable.map((row, index) => (
                     <tr key={index}>
-                        <td>{row.Distance_wt}</td>
-                        <td>{row.Distance_mut}</td>
-                        <td>{row.Delta_Distance}</td>
+                        <td>{row.Distance_wt.toFixed(1)}</td>
+                        <td>{row.Distance_mut.toFixed(1)}</td>
+                        <td>{row.Delta_Distance.toFixed(1)}</td>
                         <td>{row.ResidueID1}</td>
                         <td>{row.ChainID1}</td>
                         <td>{row.ResidueID2}</td>

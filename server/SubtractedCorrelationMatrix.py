@@ -211,7 +211,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # Plot matrix1
     sc1 = axs[0].imshow(matrixA.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
     cbar1 = fig.colorbar(sc1, ax=axs[0])
-    cbar1.set_label('Distance', fontsize=14)
+    cbar1.set_label('Distance (Å)', fontsize=14)
     axs[0].set_title("PDB 1", fontsize=16)
     axs[0].set_xlabel("Residue Index", fontsize=14)
     axs[0].set_ylabel("Residue Index", fontsize=14)
@@ -220,7 +220,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # Plot matrix2
     sc2 = axs[1].imshow(matrixB.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
     cbar2 = fig.colorbar(sc2, ax=axs[1])
-    cbar2.set_label('Distance', fontsize=14)
+    cbar2.set_label('Distance (Å)', fontsize=14)
     axs[1].set_title("PDB 2", fontsize=16)
     axs[1].set_xlabel("Residue Index", fontsize=14)
     axs[1].invert_yaxis()
@@ -228,7 +228,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     # Plot the thresholded matrix (result)
     sc3 = axs[2].imshow(sub.pivot('Index1', 'Index2', 'Delta_Distance'), cmap='viridis', aspect='auto')
     cbar3 = fig.colorbar(sc3, ax=axs[2])
-    cbar3.set_label('∆ Distance', fontsize=14)
+    cbar3.set_label('∆ Distance (Å)', fontsize=14)
     axs[2].set_title("∆ Distance", fontsize=16)
     axs[2].set_xlabel("Residue Index", fontsize=14)
     axs[2].invert_yaxis()
@@ -253,7 +253,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot the distribution of filtered distances
     plt.hist(distances, bins=num_bins, edgecolor='black')
-    plt.xlabel('∆ Distance', fontsize=14)
+    plt.xlabel('∆ Distance (Å)', fontsize=14)
     plt.ylabel('Frequency', fontsize=14)
     plt.title(f'Distribution of ∆ Distances', fontsize=16)
 
