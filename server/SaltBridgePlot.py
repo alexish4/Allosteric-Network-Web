@@ -271,21 +271,21 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     cbar1.set_label('Z Value')
     axs[0].set_xlabel('Index ID')
     axs[0].set_ylabel('Index ID')
-    axs[0].set_title('WT-MUT Matrix Plot')
+    axs[0].set_title('PDB 1')
 
     # Second scatter plot
     sc2 = axs[1].scatter(merged_bmut['Index1'], merged_bmut['Index2'], c=merged_bmut['Distance'], cmap='viridis')
     cbar2 = fig.colorbar(sc2, ax=axs[1])
     cbar2.set_label('Z Value')
     axs[1].set_xlabel('Index ID')
-    axs[1].set_title('WT-MUT Matrix Plot')
+    axs[1].set_title('PDB 2')
 
     # Third scatter plot
     sc3 = axs[2].scatter(sub['Index1'], sub['Index2'], c=sub['Delta_Distance'], cmap='viridis')
     cbar3 = fig.colorbar(sc3, ax=axs[2])
     cbar3.set_label('Z Value')
     axs[2].set_xlabel('Index ID')
-    axs[2].set_title('WT-MUT Matrix Plot')
+    axs[2].set_title('Delta Distance')
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
@@ -313,9 +313,9 @@ def generate_salt_plot(pdb_file1, pdb_file2):
 
     # Plot the distribution of filtered distances
     plt.hist(delta_distances, bins=num_bins, edgecolor='black')
-    plt.xlabel('Distance')
+    plt.xlabel('Delta Distance')
     plt.ylabel('Frequency')
-    plt.title(f'Distribution of Filtered Distances')
+    plt.title(f'Distribution of Delta Distances')
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")

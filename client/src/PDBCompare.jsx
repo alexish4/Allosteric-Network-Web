@@ -222,6 +222,10 @@ function PDBCompare() {
         });
 
         const model = viewer.getModel();
+        let atoms = model.selectedAtoms({});
+        let chains = new Set(atoms.map(atom => atom.chain));
+        console.log("Chains detected in model:", chains);
+
 
         viewer.setHoverable({}, true,
             function (atom, viewer, event, container) {
@@ -237,10 +241,29 @@ function PDBCompare() {
             }
           );
 
-        viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});
-        viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
-        viewer.setStyle({chain:'C'}, {cartoon:{color:'green'}});
-        viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow'}});
+        const colors = ['orange', 'red', 'green', 'yellow', 'pink', 'purple', 'cyan', 'magenta', 'black'];
+
+        let colorIndex = 0;
+
+        chains.forEach(chainID => {
+            let color = colors[colorIndex % colors.length]; // Cycle through colors
+            viewer.setStyle({ chain: chainID }, { cartoon: { color: color } });
+            colorIndex++;
+        });
+
+        // viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});
+        // viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
+        // viewer.setStyle({chain:'C'}, {cartoon:{color:'green'}});
+        // viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow'}});
+        // viewer.setStyle({chain:'E'}, {cartoon:{color:'pink'}});
+        // viewer.setStyle({chain:'F'}, {cartoon:{color:'purple'}});
+
+        // viewer.setStyle({chain:'PROA'}, {cartoon:{color:'orange'}});
+        // viewer.setStyle({chain:'PROB'}, {cartoon:{color:'red'}});
+        // viewer.setStyle({chain:'PROC'}, {cartoon:{color:'green'}});
+        // viewer.setStyle({chain:'PROD'}, {cartoon:{color:'yellow'}});
+        // viewer.setStyle({chain:'PROE'}, {cartoon:{color:'pink'}});
+        // viewer.setStyle({chain:'PROF'}, {cartoon:{color:'purple'}});
         viewer.zoomTo();                                      
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   

@@ -162,16 +162,11 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
     # sys1['System']='WT'
     sys1 = sys1.reset_index()
-    print(sys1.head())  
-
-    u = mda.Universe(pdb_file1)
 
     # Load your second PDB file 
     pdb_file2 = pdb_file2_path 
     sys2 = PDBCompareMethods.pdb_to_dataframe(pdb_file2)
-    # sys2['System']='Mut'
     sys2=sys2.reset_index()
-    print(sys2.tail())  
 
     # Extract residue IDs from both PDB files
     residue_ids_1 = get_residue_ids(pdb_file1)
@@ -185,7 +180,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     filtered_df1 = PDBCompareMethods.filter_by_residue_ids(sys1, common_residue_ids)
     filtered_cb1 = filtered_df1.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
 
-
     filtered_df2 = PDBCompareMethods.filter_by_residue_ids(sys2, common_residue_ids)
     filtered_cb2 = filtered_df2.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
 
@@ -195,53 +189,46 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     matrixA=compute_pairwise_distances(filtered_cb1)
     matrixB=compute_pairwise_distances(filtered_cb2)
-    #sub=np.abs(matrixA-matrixB)
 
     sub = {'Index1': matrixA['Index1'],
     'Index2':matrixA['Index2'],
     'Distance_wt':matrixA['Distance'],
     'Distance_mut':matrixB['Distance'],
     'Delta_Distance':np.abs(matrixA['Distance']-matrixB['Distance']),
-    #'ResidueName1':matrixA['ResidueName1'],
     'ResidueID1':matrixA['ResidueID1'],
     'ChainID1':matrixA['ChainID1'],
-    #'ResidueName2':matrixA['ResidueName2'],
     'ResidueID2':matrixA['ResidueID2'],
     'ChainID2':matrixA['ChainID2']}
     sub=pd.DataFrame(sub)
 
     filtered_sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
 
-    print(len(filtered_sub))
-
-    # save_edges_from_sub(filtered_sub, hashmap_cb1)
     filtered_sub.to_csv("Subtract_Files/saved_sub1.csv", index=False)
-    print("saved to csv")
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
 
     # Plot matrix1
-    # cax1 = axs[0].imshow(matrixA, cmap="viridis", interpolation="nearest")
     sc1 = axs[0].imshow(matrixA.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
     fig.colorbar(sc1, ax=axs[0], label="Distance (Å)")
-    axs[0].set_title("WT")
+    axs[0].set_title("PDB 1")
     axs[0].set_xlabel("Residue Index")
     axs[0].set_ylabel("Residue Index")
+    axs[0].invert_yaxis()
 
     # Plot matrix2
-    #cax2 = axs[1].imshow(matrixB, cmap="viridis", interpolation="nearest")
     sc2 = axs[1].imshow(matrixB.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
     fig.colorbar(sc2, ax=axs[1], label="Distance (Å)")
-    axs[1].set_title("Mut")
+    axs[1].set_title("PDB 2")
     axs[1].set_xlabel("Residue Index")
+    axs[1].invert_yaxis()
 
     # Plot the thresholded matrix (result)
-    #cax3 = axs[2].imshow(sub, cmap="viridis", interpolation="nearest")
     sc3 = axs[2].imshow(sub.pivot('Index1', 'Index2', 'Delta_Distance'), cmap='viridis', aspect='auto')
     fig.colorbar(sc3, ax=axs[2], label="Delta Distance (Å)")
-    axs[2].set_title("Subtracted Wt and Mut, Delta Distance")
+    axs[2].set_title("Delta Distance")
     axs[2].set_xlabel("Residue Index")
+    axs[2].invert_yaxis()
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
@@ -262,9 +249,9 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot the distribution of filtered distances
     plt.hist(distances, bins=num_bins, edgecolor='black')
-    plt.xlabel('Distance')
+    plt.xlabel('Delta Distance')
     plt.ylabel('Frequency')
-    plt.title(f'Distribution of Filtered Distances')
+    plt.title(f'Distribution of Delta Distances')
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")
@@ -272,8 +259,6 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     distribution_graph = base64.b64encode(buffer.getvalue()).decode('utf8')
     buffer.close()
     plt.close()
-
-    print(filtered_sub, " is filtered sub")
 
     return calculated_matrix_image, distribution_graph
 
