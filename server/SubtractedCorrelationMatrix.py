@@ -206,28 +206,31 @@ def get_plots(pdb_file1_path, pdb_file2_path):
     filtered_sub.to_csv("Subtract_Files/saved_sub1.csv", index=False)
 
     # Create a figure with three subplots (1 row, 3 columns)
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))  # Adjust figsize for a better layout
 
     # Plot matrix1
     sc1 = axs[0].imshow(matrixA.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
-    fig.colorbar(sc1, ax=axs[0], label="Distance (Å)")
-    axs[0].set_title("PDB 1")
-    axs[0].set_xlabel("Residue Index")
-    axs[0].set_ylabel("Residue Index")
+    cbar1 = fig.colorbar(sc1, ax=axs[0])
+    cbar1.set_label('Distance', fontsize=14)
+    axs[0].set_title("PDB 1", fontsize=16)
+    axs[0].set_xlabel("Residue Index", fontsize=14)
+    axs[0].set_ylabel("Residue Index", fontsize=14)
     axs[0].invert_yaxis()
 
     # Plot matrix2
     sc2 = axs[1].imshow(matrixB.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
-    fig.colorbar(sc2, ax=axs[1], label="Distance (Å)")
-    axs[1].set_title("PDB 2")
-    axs[1].set_xlabel("Residue Index")
+    cbar2 = fig.colorbar(sc2, ax=axs[1])
+    cbar2.set_label('Distance', fontsize=14)
+    axs[1].set_title("PDB 2", fontsize=16)
+    axs[1].set_xlabel("Residue Index", fontsize=14)
     axs[1].invert_yaxis()
 
     # Plot the thresholded matrix (result)
     sc3 = axs[2].imshow(sub.pivot('Index1', 'Index2', 'Delta_Distance'), cmap='viridis', aspect='auto')
-    fig.colorbar(sc3, ax=axs[2], label="Delta Distance (Å)")
-    axs[2].set_title("Delta Distance")
-    axs[2].set_xlabel("Residue Index")
+    cbar3 = fig.colorbar(sc3, ax=axs[2])
+    cbar3.set_label('∆ Distance', fontsize=14)
+    axs[2].set_title("∆ Distance", fontsize=16)
+    axs[2].set_xlabel("Residue Index", fontsize=14)
     axs[2].invert_yaxis()
 
     # Adjust layout for better spacing between plots
@@ -249,9 +252,9 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Plot the distribution of filtered distances
     plt.hist(distances, bins=num_bins, edgecolor='black')
-    plt.xlabel('Delta Distance')
-    plt.ylabel('Frequency')
-    plt.title(f'Distribution of Delta Distances')
+    plt.xlabel('∆ Distance', fontsize=14)
+    plt.ylabel('Frequency', fontsize=14)
+    plt.title(f'Distribution of ∆ Distances', fontsize=16)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")

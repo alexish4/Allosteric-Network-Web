@@ -264,28 +264,28 @@ def generate_salt_plot(pdb_file1, pdb_file2):
         'STD_MUT': merged_bmut['std']}
     sub=pd.DataFrame(sub)
 
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))  # Adjust figsize for a better layout
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))  # Adjust figsize for a better layout
 
     sc1 = axs[0].scatter(merged_b['Index1'], merged_b['Index2'], c=merged_b['Distance'], cmap='viridis')
     cbar1 = fig.colorbar(sc1, ax=axs[0])
-    cbar1.set_label('Z Value')
-    axs[0].set_xlabel('Index ID')
-    axs[0].set_ylabel('Index ID')
-    axs[0].set_title('PDB 1')
+    cbar1.set_label('Z Value', fontsize=14)
+    axs[0].set_xlabel('Index ID', fontsize=14)
+    axs[0].set_ylabel('Index ID', fontsize=14)
+    axs[0].set_title('PDB 1', fontsize=16)
 
     # Second scatter plot
     sc2 = axs[1].scatter(merged_bmut['Index1'], merged_bmut['Index2'], c=merged_bmut['Distance'], cmap='viridis')
     cbar2 = fig.colorbar(sc2, ax=axs[1])
-    cbar2.set_label('Z Value')
-    axs[1].set_xlabel('Index ID')
-    axs[1].set_title('PDB 2')
+    cbar2.set_label('Z Value', fontsize=14)
+    axs[1].set_xlabel('Index ID', fontsize=14)
+    axs[1].set_title('PDB 2', fontsize=16)
 
     # Third scatter plot
     sc3 = axs[2].scatter(sub['Index1'], sub['Index2'], c=sub['Delta_Distance'], cmap='viridis')
     cbar3 = fig.colorbar(sc3, ax=axs[2])
-    cbar3.set_label('Z Value')
-    axs[2].set_xlabel('Index ID')
-    axs[2].set_title('Delta Distance')
+    cbar3.set_label('Z Value', fontsize=14)
+    axs[2].set_xlabel('Index ID', fontsize=14)
+    axs[2].set_title('∆ Distance', fontsize=16)
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
@@ -313,9 +313,9 @@ def generate_salt_plot(pdb_file1, pdb_file2):
 
     # Plot the distribution of filtered distances
     plt.hist(delta_distances, bins=num_bins, edgecolor='black')
-    plt.xlabel('Delta Distance')
-    plt.ylabel('Frequency')
-    plt.title(f'Distribution of Delta Distances')
+    plt.xlabel('∆ Distance', fontsize=14)
+    plt.ylabel('Frequency', fontsize=14)
+    plt.title(f'Distribution of Delta Distances', fontsize=16)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")

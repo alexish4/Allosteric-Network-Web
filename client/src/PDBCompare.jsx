@@ -363,22 +363,18 @@ function PDBCompare() {
         <table>
             <thead>
                 <tr>
-                    <th>Index1</th>
-                    <th>Index2</th>
-                    <th>Distance Pdb1</th>
-                    <th>Distance Pdb2</th>
-                    <th>Delta Distance</th>
-                    <th>ResidueID1</th>
+                    <th>Dist-Pdb1</th>
+                    <th>Dist-Pdb2</th>
+                    <th>∆-Dist</th>
+                    <th>ResID1</th>
                     <th>ChainID1</th>
-                    <th>ResidueID2</th>
+                    <th>ResID2</th>
                     <th>ChainID2</th>
                 </tr>
             </thead>
             <tbody>
                 {edgesTable.map((row, index) => (
                     <tr key={index}>
-                        <td>{row.Index1}</td>
-                        <td>{row.Index2}</td>
                         <td>{row.Distance_wt}</td>
                         <td>{row.Distance_mut}</td>
                         <td>{row.Delta_Distance}</td>
