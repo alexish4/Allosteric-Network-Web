@@ -289,6 +289,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.4)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")

@@ -235,6 +235,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     # Adjust layout for better spacing between plots
     plt.tight_layout()
+    plt.subplots_adjust(wspace=0.4)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png")
