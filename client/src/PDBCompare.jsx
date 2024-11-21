@@ -18,10 +18,11 @@ function PDBCompare() {
     const [edgeFile, setEdgeFile] = useState(null);
     const [subtractionPlot, setsubtractionPlot] = useState(null);
     const [saltPlot, setSaltPlot] = useState(null);
-    const [distributionPlot, setdistributionPlot] = useState(null);
+    const [distributionPlot, setDistributionPlot] = useState(null);
     const [subtractDistributionPlot, setSubtractDistributionPlot] = useState(null);
     const [saltDistributionPlot, setSaltDistributionPlot] = useState(null);
-    const [activeTab, setActiveTab] = useState(0);
+    const [activePlotTypeTab, setActivePlotTypeTab] = useState(0);
+    const [activePDBUploadTab, setActivePDBUploadTab] = useState(0);
     const [showRenderOptions, setShowRenderOptions] = useState(false);
     const [lowerBound, setLowerBound] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +50,7 @@ function PDBCompare() {
 
         try {
             let response;
-            if(activeTab == 0) { // subtract edges
+            if(activePlotTypeTab == 0) { // subtract edges
                 response = await axios.post('/api/rerender', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data',
@@ -82,13 +83,13 @@ function PDBCompare() {
     };
 
     // Function to handle tab switching
-    const switchTab = (tabIndex) => {
-        setActiveTab(tabIndex);
+    const switchPlotTypeTab = (tabIndex) => {
+        setActivePlotTypeTab(tabIndex);
         if(tabIndex == 0) {
-            setdistributionPlot(subtractDistributionPlot);
+            setDistributionPlot(subtractDistributionPlot);
         }
         else {
-            setdistributionPlot(saltDistributionPlot);
+            setDistributionPlot(saltDistributionPlot);
         }
     };
 
@@ -167,7 +168,6 @@ function PDBCompare() {
             setSaltPlot(plots.salt_plot_image);
             setSubtractDistributionPlot(plots.subtract_distribution_graph);
             setSaltDistributionPlot(plots.salt_distribution_graph);
-            setdistributionPlot(plots.subtractDistributionPlot);
 
             render3dmol(data);
             setShowRenderOptions(true);
@@ -255,10 +255,10 @@ function PDBCompare() {
     }
 
     useEffect(() => {
-        if (!distributionPlot && activeTab == 0) {
-            setdistributionPlot(subtractDistributionPlot);
-        } else if (!distributionPlot && activeTab == 1) {
-            setdistributionPlot(saltDistributionPlot);
+        if (!distributionPlot && activePlotTypeTab == 0) {
+            setDistributionPlot(subtractDistributionPlot);
+        } else if (!distributionPlot && activePlotTypeTab == 1) {
+            setDistributionPlot(saltDistributionPlot);
         }
         console.log(selectedChains, " are the selected chains");
     }, [subtractDistributionPlot, distributionPlot, chainRanges]);
@@ -276,15 +276,15 @@ function PDBCompare() {
         {isLoading && <p>Loading, please wait...</p>}
 
         <div className="tab-navigation">
-            <button onClick={() => switchTab(0)} className={activeTab === 0 ? 'active-tab' : ''}>Pairwise Distances</button>
-            <button onClick={() => switchTab(1)} className={activeTab === 1 ? 'active-tab' : ''}>Salt Bridge Distances</button>
+            <button onClick={() => switchPlotTypeTab(0)} className={activePlotTypeTab === 0 ? 'active-tab' : ''}>Pairwise Distances</button>
+            <button onClick={() => switchPlotTypeTab(1)} className={activePlotTypeTab === 1 ? 'active-tab' : ''}>Salt Bridge Distances</button>
         </div>
 
         <div className="tab-content">
-            {activeTab === 0 && subtractionPlot && (
+            {activePlotTypeTab === 0 && subtractionPlot && (
                 <img src={`data:image/png;base64,${subtractionPlot}`} alt="Subtracted Matrix" className="centered-image" />
             )}
-            {activeTab === 1 && saltPlot && (
+            {activePlotTypeTab === 1 && saltPlot && (
                 <img src={`data:image/png;base64,${saltPlot}`} alt="Salt Plot" className="centered-image" />
             )}
         </div>
