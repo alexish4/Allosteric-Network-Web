@@ -16,3 +16,5 @@ server/Subtract_Files/
 server/Top5_distance_pairs.csv
 server/WT_CB_distance_pairs.csv
 server/merged_distance_pairs.csv
+client/src/assets/Subtract-intro.png
+server/logfile.log
