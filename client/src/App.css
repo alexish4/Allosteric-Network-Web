@@ -106,6 +106,12 @@
   border-color: #007bff;
 }
 
+.tab-navigation .red-tab {
+  background-color: #ff4d4d;
+  color: white;
+  border-color: #ff4d4d;
+}
+
 .tab-content {
   text-align: center;
 }

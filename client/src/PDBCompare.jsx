@@ -82,7 +82,6 @@ function PDBCompare() {
         }
     };
 
-    // Function to handle tab switching
     const switchPlotTypeTab = (tabIndex) => {
         setActivePlotTypeTab(tabIndex);
         if(tabIndex == 0) {
@@ -91,6 +90,10 @@ function PDBCompare() {
         else {
             setDistributionPlot(saltDistributionPlot);
         }
+    };
+
+    const switchPDBUploadTab = (tabIndex) => {
+        setActivePDBUploadTab(tabIndex);
     };
 
     const handlePdbFile1Change = (event) => {
@@ -269,9 +272,22 @@ function PDBCompare() {
         <img src={MyImage} alt="Residue-Residue Distance" style={{ maxWidth: "100%", height: "auto", marginTop: "20px" }} />
         <br></br>
 
-        <input type="file" onChange={handlePdbFile1Change} />
-        <input type="file" onChange={handlePdbFile2Change} />
-        <button onClick={handleSubmit}>Submit</button>
+        <div className="tab-navigation">
+            <button onClick={() => switchPDBUploadTab(0)} className={activePDBUploadTab === 0 ? 'red-tab' : ''}>Upload PDB's</button>
+            <button onClick={() => switchPDBUploadTab(1)} className={activePDBUploadTab === 1 ? 'red-tab' : ''}>Fetch PDB's</button>
+        </div>
+
+        <div className="tab-content">
+            {activePDBUploadTab === 0 && (
+                <div>
+                    <input type="file" onChange={handlePdbFile1Change} />
+                    <input type="file" onChange={handlePdbFile2Change} />
+                    <button onClick={handleSubmit}>Submit</button>
+                </div>
+            )}
+        </div>
+
+        <br></br>
 
         {isLoading && <p>Loading, please wait...</p>}
 
