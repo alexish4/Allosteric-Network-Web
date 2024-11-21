@@ -29,7 +29,6 @@ function PDBCompare() {
     const [chainRanges, setChainRanges] = useState({});
     const [edgesTable, setEdgesTable] = useState([]);
 
-    // Handle button click
     const handleRerender = async () => {
       if (!pdbFile1 || !pdbFile2) {
         alert('Please select both PDB files.');
@@ -71,7 +70,6 @@ function PDBCompare() {
             setEdgesTable(parsedTable);
 
             if (data.edges.length === 0) {
-                // Show message if edges length is 0
                 alert("No edges found in the data. Consider lowering delta distance cutoff");
             }
 
@@ -251,27 +249,16 @@ function PDBCompare() {
             colorIndex++;
         });
 
-        // viewer.setStyle({chain:'A'}, {cartoon:{color:'orange'}});
-        // viewer.setStyle({chain:'B'}, {cartoon:{color:'red'}});
-        // viewer.setStyle({chain:'C'}, {cartoon:{color:'green'}});
-        // viewer.setStyle({chain:'D'}, {cartoon:{color:'yellow'}});
-        // viewer.setStyle({chain:'E'}, {cartoon:{color:'pink'}});
-        // viewer.setStyle({chain:'F'}, {cartoon:{color:'purple'}});
-
-        // viewer.setStyle({chain:'PROA'}, {cartoon:{color:'orange'}});
-        // viewer.setStyle({chain:'PROB'}, {cartoon:{color:'red'}});
-        // viewer.setStyle({chain:'PROC'}, {cartoon:{color:'green'}});
-        // viewer.setStyle({chain:'PROD'}, {cartoon:{color:'yellow'}});
-        // viewer.setStyle({chain:'PROE'}, {cartoon:{color:'pink'}});
-        // viewer.setStyle({chain:'PROF'}, {cartoon:{color:'purple'}});
         viewer.zoomTo();                                      
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   
     }
 
     useEffect(() => {
-        if (!distributionPlot && subtractDistributionPlot) {
+        if (!distributionPlot && activeTab == 0) {
             setdistributionPlot(subtractDistributionPlot);
+        } else if (!distributionPlot && activeTab == 1) {
+            setdistributionPlot(saltDistributionPlot);
         }
         console.log(selectedChains, " are the selected chains");
     }, [subtractDistributionPlot, distributionPlot, chainRanges]);
