@@ -241,7 +241,7 @@ function PDBCompare() {
             }
           );
 
-        const colors = ['orange', 'red', 'green', 'yellow', 'pink', 'purple', 'cyan', 'magenta', 'black'];
+        const colors = ['orange', 'red', 'green', 'yellow', 'pink', 'purple', 'cyan', 'magenta', 'brown', 'silver', 'lime', 'black'];
 
         let colorIndex = 0;
 

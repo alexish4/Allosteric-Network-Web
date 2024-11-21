@@ -269,7 +269,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     sc1 = axs[0].scatter(merged_b['Index1'], merged_b['Index2'], c=merged_b['Distance'], cmap='viridis')
     cbar1 = fig.colorbar(sc1, ax=axs[0])
     cbar1.set_label('Distance (Å)', fontsize=14)
-    axs[0].set_xlabel('Residue ID', fontsize=14)
+    axs[0].set_xlabel('Residue Index', fontsize=14)
     axs[0].set_ylabel('Index ID', fontsize=14)
     axs[0].set_title('PDB 1', fontsize=16)
 
@@ -277,7 +277,7 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     sc2 = axs[1].scatter(merged_bmut['Index1'], merged_bmut['Index2'], c=merged_bmut['Distance'], cmap='viridis')
     cbar2 = fig.colorbar(sc2, ax=axs[1])
     cbar2.set_label('Distance (Å)', fontsize=14)
-    axs[1].set_xlabel('Residue ID', fontsize=14)
+    axs[1].set_xlabel('Residue Index', fontsize=14)
     axs[1].set_title('PDB 2', fontsize=16)
 
     # Third scatter plot

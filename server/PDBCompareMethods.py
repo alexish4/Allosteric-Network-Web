@@ -70,7 +70,7 @@ def rerender_edgelist_from_mda_universe_and_residue_pairs(pubStrucUniverse, resi
             resid2 = int(residue2.residues[0].resid)
             
             # Create an edge label based on the residue names and IDs
-            edgeLabel = f'Distance: {distance} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+            edgeLabel = f'∆ Distance: {distance} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
             #converting to python types instead of numpy types so we can jsonify
             edge_data = {
