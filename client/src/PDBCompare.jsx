@@ -15,6 +15,8 @@ function PDBCompare() {
 
     const [pdbFile1, setPdbFile1] = useState(null);
     const [pdbFile2, setPdbFile2] = useState(null);
+    const [pdbField1, setPdbField1] = useState('');
+    const [pdbField2, setPdbField2] = useState('');
     const [edgeFile, setEdgeFile] = useState(null);
     const [subtractionPlot, setsubtractionPlot] = useState(null);
     const [saltPlot, setSaltPlot] = useState(null);
@@ -31,14 +33,28 @@ function PDBCompare() {
     const [edgesTable, setEdgesTable] = useState([]);
 
     const handleRerender = async () => {
-      if (!pdbFile1 || !pdbFile2) {
-        alert('Please select both PDB files.');
-        return;
+        if ((!pdbFile1 || !pdbFile2) && (pdbField1 === '' || pdbField2 === '')) {
+            alert('Please select both PDB files.');
+            return;
         }
 
         const formData = new FormData();
-        formData.append('pdb_file1', pdbFile1);
-        formData.append('pdb_file2', pdbFile2);
+        if(activePDBUploadTab === 0) {
+            formData.append('pdb_file1', pdbFile1);
+            formData.append('pdb_file2', pdbFile2);
+        } else {
+            try {
+                const response1 = await axios.get(`https://files.rcsb.org/download/${pdbField1}.pdb`);
+                const response2 = await axios.get(`https://files.rcsb.org/download/${pdbField2}.pdb`);
+        
+                formData.append('pdb_file1', new Blob([response1.data], { type: 'text/plain' }), `${pdbField1}.pdb`);
+                formData.append('pdb_file2', new Blob([response2.data], { type: 'text/plain' }), `${pdbField2}.pdb`);
+            } catch (error) {
+                console.error('Error fetching PDB files:', error);
+                alert('Could not fetch one or both PDB files. Please check the PDB IDs.');
+            }
+        }
+
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
         formData.append('chain_ranges', JSON.stringify(chainRanges));
@@ -98,6 +114,8 @@ function PDBCompare() {
 
     const handlePdbFile1Change = (event) => {
         setPdbFile1(event.target.files[0]);
+        setPdbField1('');
+        setPdbField2('');
     };
 
     const handlePdbFile2Change = (event) => {
@@ -127,14 +145,27 @@ function PDBCompare() {
     };
 
     const handleSubmit = async () => {
-        if (!pdbFile1 || !pdbFile2) {
+        if ((!pdbFile1 || !pdbFile2) && (pdbField1 === '' || pdbField2 === '')) {
             alert('Please select both PDB files.');
             return;
         }
 
         const formData = new FormData();
-        formData.append('pdb_file1', pdbFile1);
-        formData.append('pdb_file2', pdbFile2);
+        if(activePDBUploadTab === 0) {
+            formData.append('pdb_file1', pdbFile1);
+            formData.append('pdb_file2', pdbFile2);
+        } else {
+            try {
+                const response1 = await axios.get(`https://files.rcsb.org/download/${pdbField1}.pdb`);
+                const response2 = await axios.get(`https://files.rcsb.org/download/${pdbField2}.pdb`);
+        
+                formData.append('pdb_file1', new Blob([response1.data], { type: 'text/plain' }), `${pdbField1}.pdb`);
+                formData.append('pdb_file2', new Blob([response2.data], { type: 'text/plain' }), `${pdbField2}.pdb`);
+            } catch (error) {
+                console.error('Error fetching PDB files:', error);
+                alert('Could not fetch one or both PDB files. Please check the PDB IDs.');
+            }
+        }
 
         try {
             const chain_response = await axios.post('/api/extract_chains', formData, {
@@ -285,6 +316,29 @@ function PDBCompare() {
                     <button onClick={handleSubmit}>Submit</button>
                 </div>
             )}
+            {activePDBUploadTab === 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    Enter 2 PDB's Which Will Be Fetched from Protein Data Bank Database:
+                    <div>
+                        <input
+                            type="text" // Set type to number for double input
+                            value={pdbField1}
+                            onChange={(e) => setPdbField1(e.target.value)}
+                            style={{ marginLeft: '10px', padding: '5px' }}
+                            placeholder="PDB 1" // Optional placeholder
+                        />
+                        <input
+                            type="text" // Set type to number for double input
+                            value={pdbField2}
+                            onChange={(e) => setPdbField2(e.target.value)}
+                            style={{ marginLeft: '10px', padding: '5px' }}
+                            placeholder="PDB 2" // Optional placeholder
+                        />
+                        <button onClick={handleSubmit}>Submit</button>
+                    </div>
+                </div>
+            )}
+
         </div>
 
         <br></br>
