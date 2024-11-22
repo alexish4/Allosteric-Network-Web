@@ -89,9 +89,9 @@ def recalculate_from_new_cutoff_value():
         submitted_edge_file = True
         edge_file.save("Subtract_Files/edges_table.csv")
     
-    file_to_render = "Subtract_Files/saved_sub1.csv"
+    file_to_render = f"Subtract_Files/{unique_id}_saved_sub.csv"
     if submitted_edge_file:
-        filter_by_edge_file("Subtract_Files/saved_sub1.csv", "Subtract_Files/edges_table.csv")
+        filter_by_edge_file(f"Subtract_Files/{unique_id}_saved_sub.csv", "Subtract_Files/edges_table.csv")
         file_to_render = "Subtract_Files/filtered_edges.csv"
 
     lower_bound = float(request.form['lower_bound'])
@@ -154,7 +154,7 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
     
     return filtered_df
 
-def get_plots(pdb_file1_path, pdb_file2_path):
+def get_plots(pdb_file1_path, pdb_file2_path, unique_id):
 # Load your first PDB file
     pdb_file1 = pdb_file1_path  
     sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
@@ -201,7 +201,7 @@ def get_plots(pdb_file1_path, pdb_file2_path):
 
     filtered_sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
 
-    filtered_sub.to_csv("Subtract_Files/saved_sub1.csv", index=False)
+    filtered_sub.to_csv(f"Subtract_Files/{unique_id}_saved_sub.csv", index=False)
 
     # Create a figure with three subplots (1 row, 3 columns)
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))  # Adjust figsize for a better layout
@@ -276,8 +276,8 @@ def get_plots_and_protein_structure():
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
-    calculated_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path)
-    salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path)
+    calculated_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path, unique_id)
+    salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path, unique_id)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()

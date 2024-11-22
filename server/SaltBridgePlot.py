@@ -41,7 +41,7 @@ def recalculate_from_new_cutoff_value():
         submitted_edge_file = True
         edge_file.save("Subtract_Files/edges_table.csv")
     
-    file_to_render = "Subtract_Files/salt_bridge.csv"
+    file_to_render = f"Subtract_Files/{unique_id}_salt_sub.csv"
     if submitted_edge_file:
         SubtractedCorrelationMatrix.filter_by_edge_file("Subtract_Files/saved_sub.csv", "Subtract_Files/edges_table.csv")
         file_to_render = "Subtract_Files/filtered_edges.csv"
@@ -81,7 +81,7 @@ def recalculate_from_new_cutoff_value():
 
     return structure
 
-def generate_salt_plot(pdb_file1, pdb_file2):
+def generate_salt_plot(pdb_file1, pdb_file2, unique_id):
     sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
     sys1 = sys1.reset_index()
 
@@ -323,6 +323,6 @@ def generate_salt_plot(pdb_file1, pdb_file2):
     plt.close()
 
     
-    sub_rm.to_csv('Subtract_Files/salt_bridge.csv',index=False)
+    sub_rm.to_csv(f'Subtract_Files/{unique_id}_salt_sub.csv',index=False)
 
     return salt_plot_image, distribution_graph
