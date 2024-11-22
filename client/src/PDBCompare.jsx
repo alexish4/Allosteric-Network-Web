@@ -31,30 +31,11 @@ function PDBCompare() {
     const [selectedChains, setSelectedChains] = useState({});
     const [chainRanges, setChainRanges] = useState({});
     const [edgesTable, setEdgesTable] = useState([]);
+    const [uniqueID, setUniqueID] = useState('');
 
     const handleRerender = async () => {
-        if ((!pdbFile1 || !pdbFile2) && (pdbField1 === '' || pdbField2 === '')) {
-            alert('Please select both PDB files.');
-            return;
-        }
-
         const formData = new FormData();
-        if(activePDBUploadTab === 0) {
-            formData.append('pdb_file1', pdbFile1);
-            formData.append('pdb_file2', pdbFile2);
-        } else {
-            try {
-                const response1 = await axios.get(`https://files.rcsb.org/download/${pdbField1}.pdb`);
-                const response2 = await axios.get(`https://files.rcsb.org/download/${pdbField2}.pdb`);
-        
-                formData.append('pdb_file1', new Blob([response1.data], { type: 'text/plain' }), `${pdbField1}.pdb`);
-                formData.append('pdb_file2', new Blob([response2.data], { type: 'text/plain' }), `${pdbField2}.pdb`);
-            } catch (error) {
-                console.error('Error fetching PDB files:', error);
-                alert('Could not fetch one or both PDB files. Please check the PDB IDs.');
-            }
-        }
-
+        formData.append('unique_id', uniqueID)
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
         formData.append('chain_ranges', JSON.stringify(chainRanges));
@@ -202,6 +183,7 @@ function PDBCompare() {
             setSaltPlot(plots.salt_plot_image);
             setSubtractDistributionPlot(plots.subtract_distribution_graph);
             setSaltDistributionPlot(plots.salt_distribution_graph);
+            setUniqueID(data.unique_id);
 
             render3dmol(data);
             setShowRenderOptions(true);

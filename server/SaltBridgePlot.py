@@ -32,8 +32,7 @@ def get_residue_ids(pdb_file):
     return residue_ids
 
 def recalculate_from_new_cutoff_value():
-    pdb_file1 = request.files['pdb_file1']
-    pdb_file2 = request.files['pdb_file2']
+    unique_id = request.form['unique_id']
     edge_file = request.files.get('edge_file')
 
     # Check if a file was submitted
@@ -60,10 +59,8 @@ def recalculate_from_new_cutoff_value():
 
     filtered_chains = [chain for chain, is_selected in selected_chains.items() if is_selected]
 
-    pdb_file1_path = 'Subtract_Files/pdb_file1.pdb'
-    pdb_file2_path = 'Subtract_Files/pdb_file2.pdb'
-    pdb_file1.save(pdb_file1_path)
-    pdb_file2.save(pdb_file2_path)
+    pdb_file1_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
+    pdb_file2_path = f'Subtract_Files/{unique_id}_pdb_file2.pdb'
 
     u = mda.Universe(pdb_file1_path)
 
