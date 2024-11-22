@@ -5,6 +5,7 @@ import Home from './Home';
 import Allosteric from './Allosteric'; 
 import PDBCompare from './PDBCompare';
 import './App.css';
+import NewAllosteric from './NewAllosteric';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/allosteric" element={<Allosteric />} />
         <Route path="/pdbpaircompare" element={<PDBCompare />} />
+        <Route path="/newallosteric" element={<NewAllosteric />} />
       </Routes>
       <NavBar />
     </Router>

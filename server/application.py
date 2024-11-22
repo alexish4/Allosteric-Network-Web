@@ -18,6 +18,7 @@ import SaltBridgePlot
 import json
 import logging
 import PDBCompareMethods
+import Allosteric
 
 app=Flask(__name__)
 application=app
@@ -59,6 +60,10 @@ def rerender_salt():
 @app.route('/api/extract_chains', methods=['POST'])
 def extract_chains_from_pdb():
     return PDBCompareMethods.extract_chains()
+
+@app.route('/api/allosteric', methods=['POST'])
+def allosteric_plots():
+    return Allosteric.get_plots_and_protein_structure()
 
 @app.route('/api/calculate', methods=['POST'])
 def compute_flow_betweenness():

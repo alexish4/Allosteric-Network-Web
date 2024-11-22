@@ -39,6 +39,7 @@ function PDBCompare() {
         formData.append('lower_bound', lowerBound);
         formData.append('selected_chains', JSON.stringify(selectedChains));
         formData.append('chain_ranges', JSON.stringify(chainRanges));
+        console.log(uniqueID, " is unique id");
         
         // Only append edgeFile if it exists
         if (edgeFile) {
