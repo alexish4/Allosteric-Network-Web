@@ -63,7 +63,7 @@ def extract_chains_from_pdb():
 
 @app.route('/api/allosteric', methods=['POST'])
 def allosteric_plots():
-    return Allosteric.get_plots_and_protein_structure()
+    return Allosteric.process_graph_data()
 
 @app.route('/api/calculate', methods=['POST'])
 def compute_flow_betweenness():

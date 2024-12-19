@@ -27,7 +27,7 @@ function NavBar() {
   return (
     <nav>
       {location.pathname !== "/" && <Link to="/">Go Back to Home Page |</Link>}
-      {location.pathname !== "/allosteric" && <Link to="/allosteric"> Allosteric Page</Link>}
+      {location.pathname !== "/newallosteric" && <Link to="/newallosteric"> Allosteric Page</Link>}
       {location.pathname !== "/pdbpaircompare" && <Link to="/pdbpaircompare"> | PDB Compare Page</Link>} 
     </nav>
   );

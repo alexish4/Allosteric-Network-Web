@@ -9,14 +9,25 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
 
 function NewAllosteric() {
     const [pdbFile, setPdbFile] = useState(null);
+    const [datFile, setDatFile] = useState(null);
     const [activeGraphTypeTab, setActiveGraphTypeTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
     const [sinkValues, setSinkValues] = useState('');
     const [numOfTopPaths, setNumOfTopPaths] = useState('');
+    const [average, setAverage] = useState(0); 
 
     const handlePdbFileChange = (event) => {
         setPdbFile(event.target.files[0]);
     };
+
+    const handleDatFileChange = (event) => {
+        setDatFile(event.target.files[0]);
+    }
+
+    const handleAverageChoice = (event) => {
+        setAverage(parseInt(event.target.value));
+        console.log(average, " is average");
+      };
 
     const switchGraphTypeTab = (tabIndex) => {
         setActiveGraphTypeTab(tabIndex);
@@ -25,6 +36,12 @@ function NewAllosteric() {
     const handleSubmit = async () => {
         const formData = new FormData();
         formData.append('pdb_file', pdbFile);
+        formData.append('correlation_dat', datFile);
+        formData.append('source_values', sourceValues);
+        formData.append('sink_values', sinkValues);
+        formData.append('k', numOfTopPaths);
+        formData.append('average', average);
+
         try {
             const response = await axios.post('/api/allosteric', formData, {
                 headers: {
@@ -33,10 +50,11 @@ function NewAllosteric() {
             });
 
             const data = response.data;
+            console.log(data.top_paths);
             render3dmol(data);
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred while processing the PDB files.');
+            alert('An error occurred while processing the files.');
         }
     };
 
@@ -117,7 +135,9 @@ function NewAllosteric() {
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
-            <input type="file" onChange={handlePdbFileChange} />
+            Please Submit PDB File: <input type="file" onChange={handlePdbFileChange} />
+            <br></br>
+            Please Submit DAT File: <input type="file" onChange={handleDatFileChange} />
             <br></br>
 
             Enter Source ID's
@@ -142,11 +162,33 @@ function NewAllosteric() {
             <input
                 type="number" // Set type to number for double input
                 value={numOfTopPaths}
-                onChange={(e) => setLowerBound(e.target.value)}
+                onChange={(e) => setNumOfTopPaths(e.target.value)}
                 style={{ marginLeft: '10px', padding: '5px' }}
                 placeholder="Top K Paths" // Optional placeholder
             />
             <br></br>
+
+            {/* For some reason Yes is counted as 1 and No is counted as 0 */}
+            Use Average Betweenness?
+            <input
+                type="radio"
+                id="YesOption"
+                name="average"
+                value="0"
+                checked={average === 0}
+                onChange={handleAverageChoice}
+            />
+            <label htmlFor="YesOption">Yes</label>
+
+            <input
+                type="radio"
+                id="NoOption"
+                name="average"
+                value="1"
+                checked={average === 1}
+                onChange={handleAverageChoice}
+            />
+            <label htmlFor="NoOption">No</label>
 
             <button onClick={handleSubmit}>Submit</button>
 
