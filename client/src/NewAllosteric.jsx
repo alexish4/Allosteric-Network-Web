@@ -15,6 +15,8 @@ function NewAllosteric() {
     const [sinkValues, setSinkValues] = useState('');
     const [numOfTopPaths, setNumOfTopPaths] = useState('');
     const [average, setAverage] = useState(0); 
+    const [betweennessTopPaths, setBetweennessTopPaths] = useState([]);
+    const [correlationTopPaths, setCorrelationTopPaths] = useState([]);
 
     const handlePdbFileChange = (event) => {
         setPdbFile(event.target.files[0]);
@@ -50,12 +52,19 @@ function NewAllosteric() {
             });
 
             const data = response.data;
+            setBetweennessTopPaths(data.top_paths);
+            setCorrelationTopPaths(data.top_paths2);
             console.log(data.top_paths);
             render3dmol(data);
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
         }
+    };
+
+    const handleHighlight = (path) => {
+        console.log('Highlight clicked for path:', path);
+        // Add your highlight logic here
     };
 
     const render3dmol = async (data) => {
@@ -199,6 +208,32 @@ function NewAllosteric() {
 
 
             <div id="viewport" className="mol-container"></div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div>
+                    <h3>Top Paths From Betweeness</h3>
+                    <ol>
+                        {betweennessTopPaths.map((path, index) => (
+                            <li key={index}>
+                                <strong>Edge Length:</strong> {path.edge_length} <br />
+                                <strong>Nodes:</strong> {path.nodes.join(' → ')}
+                                <button onClick={() => handleHighlight(path)}>Highlight</button>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+                <div>
+                    <h3>Top Paths From Correlation</h3>
+                    <ol>
+                        {correlationTopPaths.map((path, index) => (
+                            <li key={index}>
+                                <strong>Edge Length:</strong> {path.edge_length} <br />
+                                <strong>Nodes:</strong> {path.nodes.join(' → ')}
+                                <button onClick={() => handleHighlight(path)}>Highlight</button>
+                            </li>
+                        ))}
+                    </ol>
+                </div>
+            </div>
         </div>
 
     );
