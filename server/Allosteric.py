@@ -78,8 +78,10 @@ def process_graph_data():
 
     if request.form['k'] != "": #if k has input
         k = int(request.form['k'])
-    if request.form['average'] == "No":
+    if request.form['average'] == 0:
         all = True
+    print(request.form['average'], "is average")
+    print(all, "is all")
     
     if dat_file.filename.endswith('.dat'):
         rows, cols, correlations = process_dat_file(dat_file)
@@ -92,9 +94,10 @@ def process_graph_data():
     pdb_file.save(pdb_file_path)
     
     pdb_df = pdb_to_dataframe(pdb_file_path)
-    pdb_df = pdb_df.query('`Atom Name` == "CB"')
+    pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
     pdb_df['NewIndex']=range(0,len(pdb_df)) # have indices match up with positions from correlation matrix
     print(pdb_df.head(), "is pdb head")
+    print(len(pdb_df), "is length of df")
 
     adj_matrix = coo_matrix((correlations, (rows, cols)))
 
@@ -143,6 +146,8 @@ def process_graph_data():
         top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, sink_array)
 
     # Create the top_paths_data using path_lengths_edge_weights and top_paths_2
+    print(top_paths, "is top paths")
+    print(pdb_df.columns, "are columns")
     top_paths_data = [
         {'edge_length': top_paths_lengths[i], 'nodes': top_paths[i]}
         for i in range(len(top_paths))  
@@ -165,7 +170,8 @@ def process_graph_data():
     with open(pdb_file_path, 'r') as file:
         pdb_content = file.read()
 
-    edge_list = []
+    pdb_universe = mda.Universe(pdb_file_path)
+    edge_list = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe)
 
     graph_data = {
         'graph_data': nx.node_link_data(G),
@@ -179,6 +185,50 @@ def process_graph_data():
     }
     
     return graph_data
+
+def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
+    edge_list = []
+
+    for path in top_paths_data:
+        nodes = path['nodes']
+        for i in range(len(nodes) - 1):  # Pair adjacent nodes
+            node1Index = nodes[i]
+            node2Index = nodes[i+1]
+            
+            betweenness = G[node1Index][node2Index]["edge_length"]
+            correlation = G[node1Index][node2Index]["edge_length2"]
+
+            atom1 = pdb_df.query(f'NewIndex == {node1Index}').squeeze()  # Convert single-row DataFrame to Series
+            atom2 = pdb_df.query(f'NewIndex == {node2Index}').squeeze()  # Convert single-row DataFrame to Series
+
+            resID1 = atom1['Residue ID']
+            resID2 = atom2['Residue ID']
+
+            chainID1 = atom1['Chain ID']
+            chainID2 = atom2['Chain ID']
+
+            residue1 = pdb_universe.select_atoms(f"resid {resID1} and segid {chainID1} and name CA")
+            residue2 = pdb_universe.select_atoms(f"resid {resID2} and segid {chainID2} and name CA")
+
+            crd1 = residue1.center_of_mass()
+            crd2 = residue2.center_of_mass()
+
+            edgeLabel = f'Betweenness: {betweenness} Correlation: {correlation} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+
+            #converting to python types instead of numpy types so we can jsonify
+            edge_data = {
+                'label': edgeLabel,
+                'coords': {
+                    'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
+                    'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
+                }
+            }
+            
+            edge_list.append(edge_data)
+            
+    return edge_list
+
+
     
 def get_betw_value(u, v, tempLinv, tempAdjDense, source_array, sink_array):
     total_betweenness_score = 0
