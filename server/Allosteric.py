@@ -171,7 +171,9 @@ def process_graph_data():
         pdb_content = file.read()
 
     pdb_universe = mda.Universe(pdb_file_path)
-    edge_list = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe)
+    betweenness_edges = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe)
+    correlation_edges = create_3d_edges(top_paths_data2, pdb_df, G, pdb_universe)
+    #edge_list = []
 
     graph_data = {
         'graph_data': nx.node_link_data(G),
@@ -180,7 +182,8 @@ def process_graph_data():
         'ranked_nodes_data': ranked_nodes_data,
         'ranked_nodes_data2': ranked_nodes_data2,
         'pdb_content' : pdb_content,
-        'edges' : edge_list,
+        'betweenness_edges' : betweenness_edges,
+        'correlation_edges' : correlation_edges,
         'unique_id' : unique_id
     }
     
@@ -213,7 +216,7 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
             crd1 = residue1.center_of_mass()
             crd2 = residue2.center_of_mass()
 
-            edgeLabel = f'Betweenness: {betweenness} Correlation: {correlation} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+            edgeLabel = f'Betweenness: {betweenness: .2f} Correlation: {correlation: .2f} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
             #converting to python types instead of numpy types so we can jsonify
             edge_data = {

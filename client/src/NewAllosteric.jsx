@@ -17,6 +17,7 @@ function NewAllosteric() {
     const [average, setAverage] = useState(0); 
     const [betweennessTopPaths, setBetweennessTopPaths] = useState([]);
     const [correlationTopPaths, setCorrelationTopPaths] = useState([]);
+    const [graphData, setGraphData] = useState(null);
 
     const handlePdbFileChange = (event) => {
         setPdbFile(event.target.files[0]);
@@ -33,6 +34,10 @@ function NewAllosteric() {
 
     const switchGraphTypeTab = (tabIndex) => {
         setActiveGraphTypeTab(tabIndex);
+
+        if (graphData !== null) {
+            render3dmol(graphData);
+        }
     };
 
     const handleSubmit = async () => {
@@ -52,6 +57,7 @@ function NewAllosteric() {
             });
 
             const data = response.data;
+            setGraphData(data);
             setBetweennessTopPaths(data.top_paths);
             setCorrelationTopPaths(data.top_paths2);
             console.log(data.top_paths);
@@ -82,7 +88,9 @@ function NewAllosteric() {
         tooltip.style.display = 'none';  // Hide by default
         document.body.appendChild(tooltip);
 
-        data.edges.forEach(edge => {
+        let edges = activeGraphTypeTab === 0 ? data.betweenness_edges : data.correlation_edges;
+
+        edges.forEach(edge => {
             viewer.addCylinder(
               {start: {x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2]},
               end: {x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2]},
