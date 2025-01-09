@@ -78,7 +78,7 @@ def process_graph_data():
 
     if request.form['k'] != "": #if k has input
         k = int(request.form['k'])
-    if request.form['average'] == 0:
+    if int(request.form['average']) == 1:
         all = True
     print(request.form['average'], "is average")
     print(all, "is all")
@@ -140,6 +140,7 @@ def process_graph_data():
         data['edge_length2'] = edge_length2
 
     if not all:
+        print("Running first version of top paths")
         top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, source_array, sink_array)
 
     else:
