@@ -186,7 +186,9 @@ def process_graph_data():
         'betweenness_edges' : betweenness_edges,
         'correlation_edges' : correlation_edges,
         'table' : pdb_df.to_json(orient='records'),
-        'unique_id' : unique_id
+        'unique_id' : unique_id,
+        'source_values': source_array,
+        'sink_values': sink_array
     }
     
     return graph_data

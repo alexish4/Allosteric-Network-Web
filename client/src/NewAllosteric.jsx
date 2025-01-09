@@ -31,14 +31,13 @@ function NewAllosteric() {
 
     const handleAverageChoice = (event) => {
         setAverage(parseInt(event.target.value));
-        console.log(average, " is average");
       };
 
     const switchGraphTypeTab = (tabIndex) => {
         setActiveGraphTypeTab(tabIndex);
-        
+
         if (graphData !== null) {
-            render3dmol(graphData, tabIndex);
+            render3dmol(graphData, tabIndex, residueTable);
         }
     };
 
@@ -68,7 +67,7 @@ function NewAllosteric() {
             setBetweennessTopPaths(data.top_paths);
             setCorrelationTopPaths(data.top_paths2);
             setResidueTable(parsedTable);
-            render3dmol(data, activeGraphTypeTab);
+            render3dmol(data, activeGraphTypeTab, parsedTable);
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
@@ -85,7 +84,7 @@ function NewAllosteric() {
         // Add your highlight logic here
     };
 
-    const render3dmol = async (data, graphIndex) => {
+    const render3dmol = async (data, graphIndex, parsedTable) => {
         let universe = data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
@@ -158,6 +157,52 @@ function NewAllosteric() {
             colorIndex++;
         });
 
+        data.source_values.forEach((source) => {
+            const row = parsedTable.find((row) => row.NewIndex === source);
+
+            if (row) {
+                // Convert Chain ID (e.g., PROA to A, PROB to B, etc.)
+                const chain = row["Chain ID"].replace("PRO", "");
+        
+                // Set the style dynamically using values from the parsedTable
+                viewer.setStyle(
+                    {
+                        chain: chain, // Extracted and transformed chain
+                        resi: row["Residue ID"], // Residue ID from the table
+                        atom: row["Atom Name"] // Atom Name from the table
+                    },
+                    {
+                        sphere: { radius: 2, color: 'red' } // Style for the selected atoms
+                    }
+                );
+            } else {
+                console.warn(`No matching row found in parsedTable for NewIndex: ${source}`);
+            }
+        });
+
+        data.sink_values.forEach((sink) => {
+            const row = parsedTable.find((row) => row.NewIndex === sink);
+
+            if (row) {
+                // Convert Chain ID (e.g., PROA to A, PROB to B, etc.)
+                const chain = row["Chain ID"].replace("PRO", "");
+        
+                // Set the style dynamically using values from the parsedTable
+                viewer.setStyle(
+                    {
+                        chain: chain, // Extracted and transformed chain
+                        resi: row["Residue ID"], // Residue ID from the table
+                        atom: row["Atom Name"] // Atom Name from the table
+                    },
+                    {
+                        sphere: { radius: 2, color: 'green' } // Style for the selected atoms
+                    }
+                );
+            } else {
+                console.warn(`No matching row found in parsedTable for NewIndex: ${sink}`);
+            }
+        });
+
         viewer.zoomTo();                                      
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   
@@ -199,7 +244,6 @@ function NewAllosteric() {
             />
             <br></br>
 
-            {/* For some reason Yes is counted as 1 and No is counted as 0 */}
             Use Average Betweenness?
             <input
                 type="radio"
