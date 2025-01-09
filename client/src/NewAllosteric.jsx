@@ -11,6 +11,7 @@ function NewAllosteric() {
     const [pdbFile, setPdbFile] = useState(null);
     const [datFile, setDatFile] = useState(null);
     const [activeGraphTypeTab, setActiveGraphTypeTab] = useState(0);
+    const [activeSecondaryContentTab, setActiveSecondaryContentTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
     const [sinkValues, setSinkValues] = useState('');
     const [numOfTopPaths, setNumOfTopPaths] = useState('');
@@ -18,6 +19,7 @@ function NewAllosteric() {
     const [betweennessTopPaths, setBetweennessTopPaths] = useState([]);
     const [correlationTopPaths, setCorrelationTopPaths] = useState([]);
     const [graphData, setGraphData] = useState(null);
+    const [residueTable, setResidueTable] = useState([]);
 
     const handlePdbFileChange = (event) => {
         setPdbFile(event.target.files[0]);
@@ -34,10 +36,14 @@ function NewAllosteric() {
 
     const switchGraphTypeTab = (tabIndex) => {
         setActiveGraphTypeTab(tabIndex);
-
+        
         if (graphData !== null) {
-            render3dmol(graphData);
+            render3dmol(graphData, tabIndex);
         }
+    };
+
+    const switchSecondaryContentTab = (tabIndex) => {
+        setActiveSecondaryContentTab(tabIndex);
     };
 
     const handleSubmit = async () => {
@@ -57,23 +63,29 @@ function NewAllosteric() {
             });
 
             const data = response.data;
+            const parsedTable = JSON.parse(data.table);
             setGraphData(data);
             setBetweennessTopPaths(data.top_paths);
             setCorrelationTopPaths(data.top_paths2);
-            console.log(data.top_paths);
-            render3dmol(data);
+            setResidueTable(parsedTable);
+            render3dmol(data, activeGraphTypeTab);
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
         }
     };
 
-    const handleHighlight = (path) => {
+    const handleBetweennessHighlight = (path) => {
         console.log('Highlight clicked for path:', path);
         // Add your highlight logic here
     };
 
-    const render3dmol = async (data) => {
+    const handleCorrelationHighlight = (path) => {
+        console.log('Highlight clicked for path:', path);
+        // Add your highlight logic here
+    };
+
+    const render3dmol = async (data, graphIndex) => {
         let universe = data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
@@ -88,7 +100,9 @@ function NewAllosteric() {
         tooltip.style.display = 'none';  // Hide by default
         document.body.appendChild(tooltip);
 
-        let edges = activeGraphTypeTab === 0 ? data.betweenness_edges : data.correlation_edges;
+        console.log(graphIndex, " is graph index");
+
+        let edges = graphIndex === 0 ? data.betweenness_edges : data.correlation_edges;
 
         edges.forEach(edge => {
             viewer.addCylinder(
@@ -216,32 +230,71 @@ function NewAllosteric() {
 
 
             <div id="viewport" className="mol-container"></div>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div>
-                    <h3>Top Paths From Betweeness</h3>
-                    <ol>
-                        {betweennessTopPaths.map((path, index) => (
-                            <li key={index}>
-                                <strong>Edge Length:</strong> {path.edge_length} <br />
-                                <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                <button onClick={() => handleHighlight(path)}>Highlight</button>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-                <div>
-                    <h3>Top Paths From Correlation</h3>
-                    <ol>
-                        {correlationTopPaths.map((path, index) => (
-                            <li key={index}>
-                                <strong>Edge Length:</strong> {path.edge_length} <br />
-                                <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                <button onClick={() => handleHighlight(path)}>Highlight</button>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
+
+            <div className="tab-navigation">
+                <button onClick={() => switchSecondaryContentTab(0)} className={activeSecondaryContentTab === 0 ? 'active-tab' : ''}>Top Paths</button>
+                <button onClick={() => switchSecondaryContentTab(1)} className={activeSecondaryContentTab === 1 ? 'active-tab' : ''}>Residue LookUp</button>
             </div>
+
+            <div className="tab-content">
+                {activeSecondaryContentTab === 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div>
+                            <h3>Top Paths From Betweeness</h3>
+                            <ol>
+                                {betweennessTopPaths.map((path, index) => (
+                                    <li key={index}>
+                                        <strong>Edge Length:</strong> {path.edge_length} <br />
+                                        <strong>Nodes:</strong> {path.nodes.join(' → ')}
+                                        <button onClick={() => handleBetweennessHighlight(path)}>Highlight</button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                        <div>
+                            <h3>Top Paths From Correlation</h3>
+                            <ol>
+                                {correlationTopPaths.map((path, index) => (
+                                    <li key={index}>
+                                        <strong>Edge Length:</strong> {path.edge_length} <br />
+                                        <strong>Nodes:</strong> {path.nodes.join(' → ')}
+                                        <button onClick={() => handleCorrelationHighlight(path)}>Highlight</button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    </div>
+                )}
+                {activeSecondaryContentTab === 1 && (
+                    <div>
+                        <h3>Residue Table For Index LookUp</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Index</th>
+                                    <th>AtomName</th>
+                                    <th>ResName</th>
+                                    <th>ResID</th>
+                                    <th>ChainID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {residueTable.map((row, index) => (
+                                    <tr key={index}>
+                                        <td>{row.NewIndex}</td>
+                                        <td>{row["Atom Name"]}</td>
+                                        <td>{row["Residue Name"]}</td>
+                                        <td>{row["Residue ID"]}</td>  
+                                        <td>{row["Chain ID"]}</td>       
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+            </div>
+            
         </div>
 
     );

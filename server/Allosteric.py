@@ -184,6 +184,7 @@ def process_graph_data():
         'pdb_content' : pdb_content,
         'betweenness_edges' : betweenness_edges,
         'correlation_edges' : correlation_edges,
+        'table' : pdb_df.to_json(orient='records'),
         'unique_id' : unique_id
     }
     
