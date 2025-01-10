@@ -196,6 +196,7 @@ def process_graph_data():
 def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
     edge_list = []
 
+    path_index = 0 # to label which top path an edge is in
     for path in top_paths_data:
         nodes = path['nodes']
         for i in range(len(nodes) - 1):  # Pair adjacent nodes
@@ -228,11 +229,13 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
                 'coords': {
                     'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
                     'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
-                }
+                }, 
+                'path_index': path_index
             }
             
             edge_list.append(edge_data)
-            
+        path_index += 1
+
     return edge_list
 
 
