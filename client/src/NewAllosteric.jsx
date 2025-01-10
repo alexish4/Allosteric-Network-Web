@@ -8,25 +8,36 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
 
 
 function NewAllosteric() {
-    const [pdbFile, setPdbFile] = useState(null);
-    const [datFile, setDatFile] = useState(null);
+    const [pdbFile1, setPDBFile1] = useState(null);
+    const [datFile1, setDatFile1] = useState(null);
+    const [pdbFile2, setPDBFile2] = useState(null);
+    const [datFile2, setDatFile2] = useState(null);
     const [activeGraphTypeTab, setActiveGraphTypeTab] = useState(0);
     const [activeSecondaryContentTab, setActiveSecondaryContentTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
     const [sinkValues, setSinkValues] = useState('');
     const [numOfTopPaths, setNumOfTopPaths] = useState('');
     const [average, setAverage] = useState(0); 
-    const [betweennessTopPaths, setBetweennessTopPaths] = useState([]);
-    const [correlationTopPaths, setCorrelationTopPaths] = useState([]);
+    const [betweennessTopPaths1, setBetweennessTopPaths1] = useState([]);
+    const [correlationTopPaths1, setCorrelationTopPaths1] = useState([]);
+    
     const [graphData, setGraphData] = useState(null);
     const [residueTable, setResidueTable] = useState([]);
 
-    const handlePdbFileChange = (event) => {
-        setPdbFile(event.target.files[0]);
+    const handlePDBFile1Change = (event) => {
+        setPDBFile1(event.target.files[0]);
     };
 
-    const handleDatFileChange = (event) => {
-        setDatFile(event.target.files[0]);
+    const handleDatFile1Change = (event) => {
+        setDatFile1(event.target.files[0]);
+    }
+
+    const handlePDBFile2Change = (event) => {
+        setPDBFile2(event.target.files[0]);
+    };
+
+    const handleDatFile2Change = (event) => {
+        setDatFile2(event.target.files[0]);
     }
 
     const handleAverageChoice = (event) => {
@@ -47,8 +58,8 @@ function NewAllosteric() {
 
     const handleSubmit = async () => {
         const formData = new FormData();
-        formData.append('pdb_file', pdbFile);
-        formData.append('correlation_dat', datFile);
+        formData.append('pdb_file', pdbFile1);
+        formData.append('correlation_dat', datFile1);
         formData.append('source_values', sourceValues);
         formData.append('sink_values', sinkValues);
         formData.append('k', numOfTopPaths);
@@ -64,8 +75,8 @@ function NewAllosteric() {
             const data = response.data;
             const parsedTable = JSON.parse(data.table);
             setGraphData(data);
-            setBetweennessTopPaths(data.top_paths);
-            setCorrelationTopPaths(data.top_paths2);
+            setBetweennessTopPaths1(data.top_paths);
+            setCorrelationTopPaths1(data.top_paths2);
             setResidueTable(parsedTable);
             render3dmol(data, activeGraphTypeTab, parsedTable, 0); // by default highlight top path
         } catch (error) {
@@ -247,9 +258,9 @@ function NewAllosteric() {
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
-            Please Submit PDB File: <input type="file" onChange={handlePdbFileChange} />
+            Please Submit PDB Files: <input type="file" onChange={handlePDBFile1Change} /> <input type="file" onChange={handlePDBFile2Change} />
             <br></br>
-            Please Submit DAT File: <input type="file" onChange={handleDatFileChange} />
+            Please Submit DAT Files: <input type="file" onChange={handleDatFile1Change} /> <input type="file" onChange={handleDatFile2Change} />
             <br></br>
 
             Enter Source ID's
@@ -322,7 +333,7 @@ function NewAllosteric() {
                         <div>
                             <h3>Top Paths From Betweeness</h3>
                             <ol>
-                                {betweennessTopPaths.map((path, index) => (
+                                {betweennessTopPaths1.map((path, index) => (
                                     <li key={index}>
                                         <strong>Edge Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
@@ -334,7 +345,7 @@ function NewAllosteric() {
                         <div>
                             <h3>Top Paths From Correlation</h3>
                             <ol>
-                                {correlationTopPaths.map((path, index) => (
+                                {correlationTopPaths1.map((path, index) => (
                                     <li key={index}>
                                         <strong>Edge Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
