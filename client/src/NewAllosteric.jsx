@@ -107,33 +107,49 @@ function NewAllosteric() {
         console.log(graphIndex, " is graph index");
 
         let edges = graphIndex === 0 ? data.betweenness_edges : data.correlation_edges;
-        const renderedEdges = new Map();
+        const highlightedEdges = new Map();
 
+        // render highlighted edges
         edges.forEach((edge) => {
-            // Create a unique key for the edge based on start and end coordinates
             const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
-        
-            // Determine edge color based on whether it's in the highlighted path
             const edgeColor = edge.path_index === top_path_index ? "blue" : "gray";
-        
-            // If the edge is already rendered and is part of the current top path, update its style
-            if (renderedEdges.has(edgeKey)) {
-                // If it's already orange, skip; otherwise, prioritize orange
-                if (edgeColor === "orange") {
-                    console.log("Updating edge to orange:", edgeKey);
-                    renderedEdges.set(edgeKey, { ...edge, color: edgeColor });
-                }
-            } else {
-                // If not rendered, add it to the map and render
-                renderedEdges.set(edgeKey, { ...edge, color: edgeColor });
-        
+            if (edgeColor === "blue") {
+                console.log("Updating edge to blue:", edgeKey);
+                highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
+
                 viewer.addCylinder({
                     start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
                     end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
                     radius: 0.5,
                     color: edgeColor,
                     hoverable: true,
-                    opacity: 0.9,
+                    opacity: 1.0,
+                    hover_callback: function (atom, viewer, event, container) {
+                        tooltip.style.display = "block";
+                        tooltip.style.left = `${event.clientX}px`;
+                        tooltip.style.top = `${event.clientY + window.scrollY}px`;
+                        tooltip.innerHTML = `Edge Label: ${edge.label}`;
+                    },
+                    unhover_callback: function (atom, viewer, event, container) {
+                        tooltip.style.display = "none";
+                    },
+                });
+            }
+        });
+
+        // render the rest of the edges
+        edges.forEach((edge) => {
+            // Create a unique key for the edge based on start and end coordinates
+            const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
+        
+            if(!highlightedEdges.has(edgeKey)) {
+                viewer.addCylinder({
+                    start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
+                    end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
+                    radius: 0.5,
+                    color: "gray",
+                    hoverable: true,
+                    opacity: 1.0,
                     hover_callback: function (atom, viewer, event, container) {
                         tooltip.style.display = "block";
                         tooltip.style.left = `${event.clientX}px`;

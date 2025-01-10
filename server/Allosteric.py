@@ -221,7 +221,7 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
             crd1 = residue1.center_of_mass()
             crd2 = residue2.center_of_mass()
 
-            edgeLabel = f'Betweenness: {betweenness: .2f} Correlation: {correlation: .2f} ({resID1}.{chainID1}-{resID2}.{chainID2})'
+            edgeLabel = f'Betweenness: {betweenness: .2f} Correlation: {correlation: .2f}, {node1Index}-{node2Index} ({resID1}.{chainID1}-{resID2}.{chainID2})'
 
             #converting to python types instead of numpy types so we can jsonify
             edge_data = {
