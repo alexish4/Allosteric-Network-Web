@@ -8,33 +8,31 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
 
 
 function NewAllosteric() {
-    const [pdbFile1, setPDBFile1] = useState(null);
+    const [pdbFile, setPdbFile] = useState(null);
     const [datFile1, setDatFile1] = useState(null);
-    const [pdbFile2, setPDBFile2] = useState(null);
     const [datFile2, setDatFile2] = useState(null);
-    const [activeGraphTypeTab, setActiveGraphTypeTab] = useState(0);
+    const [flownessType, setFlownessType] = useState(0);
     const [activeSecondaryContentTab, setActiveSecondaryContentTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
     const [sinkValues, setSinkValues] = useState('');
     const [numOfTopPaths, setNumOfTopPaths] = useState('');
     const [average, setAverage] = useState(0); 
     const [betweennessTopPaths1, setBetweennessTopPaths1] = useState([]);
+    const [betweennessTopPaths2, setBetweennessTopPaths2] = useState([]);
     const [correlationTopPaths1, setCorrelationTopPaths1] = useState([]);
+    const [correlationTopPaths2, setCorrelationTopPaths2] = useState([]);
     
-    const [graphData, setGraphData] = useState(null);
+    const [wtData, setWtData] = useState(null);
+    const [mutData, setMutData] = useState(null);
     const [residueTable, setResidueTable] = useState([]);
 
-    const handlePDBFile1Change = (event) => {
-        setPDBFile1(event.target.files[0]);
+    const handlePdbFileChange = (event) => {
+        setPdbFile(event.target.files[0]);
     };
 
     const handleDatFile1Change = (event) => {
         setDatFile1(event.target.files[0]);
     }
-
-    const handlePDBFile2Change = (event) => {
-        setPDBFile2(event.target.files[0]);
-    };
 
     const handleDatFile2Change = (event) => {
         setDatFile2(event.target.files[0]);
@@ -44,11 +42,11 @@ function NewAllosteric() {
         setAverage(parseInt(event.target.value));
       };
 
-    const switchGraphTypeTab = (tabIndex) => {
-        setActiveGraphTypeTab(tabIndex);
+    const switchFlownessTypeTab = (tabIndex) => {
+        setFlownessType(tabIndex);
 
-        if (graphData !== null) {
-            render3dmol(graphData, tabIndex, residueTable);
+        if (wtData !== null) {
+            render3dmol(wtData, mutData, 0, tabIndex, residueTable, 0);
         }
     };
 
@@ -58,12 +56,20 @@ function NewAllosteric() {
 
     const handleSubmit = async () => {
         const formData = new FormData();
-        formData.append('pdb_file', pdbFile1);
+        formData.append('pdb_file', pdbFile);
         formData.append('correlation_dat', datFile1);
         formData.append('source_values', sourceValues);
         formData.append('sink_values', sinkValues);
         formData.append('k', numOfTopPaths);
         formData.append('average', average);
+
+        const formData2 = new FormData();
+        formData2.append('pdb_file', pdbFile);
+        formData2.append('correlation_dat', datFile2);
+        formData2.append('source_values', sourceValues);
+        formData2.append('sink_values', sinkValues);
+        formData2.append('k', numOfTopPaths);
+        formData2.append('average', average);
 
         try {
             const response = await axios.post('/api/allosteric', formData, {
@@ -72,36 +78,46 @@ function NewAllosteric() {
                 },
             });
 
-            const data = response.data;
-            const parsedTable = JSON.parse(data.table);
-            setGraphData(data);
-            setBetweennessTopPaths1(data.top_paths);
-            setCorrelationTopPaths1(data.top_paths2);
+            const response2 = await axios.post('/api/allosteric', formData2, {
+                headers: {
+                    'Content-Type' : 'multipart/form-data',
+                },
+            });
+
+            const wtData = response.data;
+            const mutData = response2.data;
+            const parsedTable = JSON.parse(wtData.table);
+            setWtData(wtData);
+            setMutData(mutData);
+            setBetweennessTopPaths1(wtData.top_paths);
+            setCorrelationTopPaths1(wtData.top_paths2);
+            setBetweennessTopPaths2(mutData.top_paths);
+            setCorrelationTopPaths2(mutData.top_paths2);
             setResidueTable(parsedTable);
-            render3dmol(data, activeGraphTypeTab, parsedTable, 0); // by default highlight top path
+            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0); // by default highlight top path from wt
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
-        }
+        }        
     };
 
-    const handleBetweennessHighlight = (path, index) => {
+    const handleWtHighlight = (path, index) => {
         console.log('Highlight clicked for path:', path);
         console.log("Path index is: ", index);
         // Add your highlight logic here
 
-        render3dmol(graphData, 0, residueTable, index);
+        render3dmol(wtData, mutData, 0, flownessType, residueTable, index);
     };
 
-    const handleCorrelationHighlight = (path, index) => {
+    const handleMutHighlight = (path, index) => {
         console.log('Highlight clicked for path:', path);
         // Add your highlight logic here
 
-        render3dmol(graphData, 1, residueTable, index);
+        render3dmol(wtData, mutData, 1, flownessType, residueTable, index);
     };
 
-    const render3dmol = async (data, graphIndex, parsedTable, top_path_index) => {
-        let universe = data.pdb_content;
+    const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index) => {
+        let universe = wt_data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
         let viewer = $3Dmol.createViewer( element, config );
@@ -117,68 +133,67 @@ function NewAllosteric() {
 
         console.log(graphIndex, " is graph index");
 
-        let edges = graphIndex === 0 ? data.betweenness_edges : data.correlation_edges;
+        // Determine edges based on flow type
+        const edges = {
+            wt: flowType === 0 ? wt_data.betweenness_edges : wt_data.correlation_edges,
+            mut: flowType === 0 ? mut_data.betweenness_edges : mut_data.correlation_edges,
+        };
+
+        // Map to track highlighted edges
         const highlightedEdges = new Map();
 
-        // render highlighted edges
-        edges.forEach((edge) => {
-            const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
-            const edgeColor = edge.path_index === top_path_index ? "blue" : "gray";
-            if (edgeColor === "blue") {
-                console.log("Updating edge to blue:", edgeKey);
-                highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
+        // Function to add cylinders
+        const addCylinder = (edge, color) => {
+            viewer.addCylinder({
+                start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
+                end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
+                radius: 0.5,
+                color: color,
+                hoverable: true,
+                opacity: 1.0,
+                hover_callback: function (atom, viewer, event, container) {
+                    tooltip.style.display = "block";
+                    tooltip.style.left = `${event.clientX}px`;
+                    tooltip.style.top = `${event.clientY + window.scrollY}px`;
+                    tooltip.innerHTML = `Edge Label: ${edge.label}`;
+                },
+                unhover_callback: function () {
+                    tooltip.style.display = "none";
+                },
+            });
+        };
 
-                viewer.addCylinder({
-                    start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
-                    end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
-                    radius: 0.5,
-                    color: edgeColor,
-                    hoverable: true,
-                    opacity: 1.0,
-                    hover_callback: function (atom, viewer, event, container) {
-                        tooltip.style.display = "block";
-                        tooltip.style.left = `${event.clientX}px`;
-                        tooltip.style.top = `${event.clientY + window.scrollY}px`;
-                        tooltip.innerHTML = `Edge Label: ${edge.label}`;
-                    },
-                    unhover_callback: function (atom, viewer, event, container) {
-                        tooltip.style.display = "none";
-                    },
-                });
-            }
-        });
+        // Function to process and highlight edges
+        const processEdges = (edges, isHighlight) => {
+            edges.forEach((edge) => {
+                const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
+                const edgeColor = edge.path_index === top_path_index && isHighlight ? "blue" : "gray";
 
-        // render the rest of the edges
-        edges.forEach((edge) => {
-            // Create a unique key for the edge based on start and end coordinates
-            const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
-        
-            if(!highlightedEdges.has(edgeKey)) {
-                viewer.addCylinder({
-                    start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
-                    end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
-                    radius: 0.5,
-                    color: "gray",
-                    hoverable: true,
-                    opacity: 1.0,
-                    hover_callback: function (atom, viewer, event, container) {
-                        tooltip.style.display = "block";
-                        tooltip.style.left = `${event.clientX}px`;
-                        tooltip.style.top = `${event.clientY + window.scrollY}px`;
-                        tooltip.innerHTML = `Edge Label: ${edge.label}`;
-                    },
-                    unhover_callback: function (atom, viewer, event, container) {
-                        tooltip.style.display = "none";
-                    },
-                });
-            }
-        });
+                // Highlight only when necessary
+                if (isHighlight && edgeColor === "blue" && !highlightedEdges.has(edgeKey)) {
+                    console.log("Updating edge to blue:", edgeKey);
+                    highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
+                    addCylinder(edge, edgeColor);
+                }
+
+                // Render remaining edges only if not highlighted
+                if (!isHighlight && !highlightedEdges.has(edgeKey)) {
+                    addCylinder(edge, "gray");
+                }
+            });
+        };
+
+        // Highlight edges based on the selected graph
+        processEdges(graphIndex === 0 ? edges.wt : edges.mut, true);
+
+        // Render the remaining edges
+        processEdges(edges.wt, false);
+        processEdges(edges.mut, false);
 
         const model = viewer.getModel();
         let atoms = model.selectedAtoms({});
         let chains = new Set(atoms.map(atom => atom.chain));
         console.log("Chains detected in model:", chains);
-
 
         viewer.setHoverable({}, true,
             function (atom, viewer, event, container) {
@@ -204,7 +219,7 @@ function NewAllosteric() {
             colorIndex++;
         });
 
-        data.source_values.forEach((source) => {
+        wt_data.source_values.forEach((source) => {
             const row = parsedTable.find((row) => row.NewIndex === source);
 
             if (row) {
@@ -227,7 +242,7 @@ function NewAllosteric() {
             }
         });
 
-        data.sink_values.forEach((sink) => {
+        wt_data.sink_values.forEach((sink) => {
             const row = parsedTable.find((row) => row.NewIndex === sink);
 
             if (row) {
@@ -258,7 +273,7 @@ function NewAllosteric() {
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
-            Please Submit PDB Files: <input type="file" onChange={handlePDBFile1Change} /> <input type="file" onChange={handlePDBFile2Change} />
+            Please Submit PDB File: <input type="file" onChange={handlePdbFileChange} />
             <br></br>
             Please Submit DAT Files: <input type="file" onChange={handleDatFile1Change} /> <input type="file" onChange={handleDatFile2Change} />
             <br></br>
@@ -315,8 +330,8 @@ function NewAllosteric() {
             <button onClick={handleSubmit}>Submit</button>
 
             <div className="tab-navigation">
-                <button onClick={() => switchGraphTypeTab(0)} className={activeGraphTypeTab === 0 ? 'active-tab' : ''}>Betweenness</button>
-                <button onClick={() => switchGraphTypeTab(1)} className={activeGraphTypeTab === 1 ? 'active-tab' : ''}>Correlation</button>
+                <button onClick={() => switchFlownessTypeTab(0)} className={flownessType === 0 ? 'active-tab' : ''}>Betweenness</button>
+                <button onClick={() => switchFlownessTypeTab(1)} className={flownessType === 1 ? 'active-tab' : ''}>Correlation</button>
             </div>
 
 
@@ -331,25 +346,25 @@ function NewAllosteric() {
                 {activeSecondaryContentTab === 0 && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         <div>
-                            <h3>Top Paths From Betweeness</h3>
+                            <h3>Top Paths From Wt</h3>
                             <ol>
                                 {betweennessTopPaths1.map((path, index) => (
                                     <li key={index}>
                                         <strong>Edge Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                        <button onClick={() => handleBetweennessHighlight(path, index)}>Highlight</button>
+                                        <button onClick={() => handleWtHighlight(path, index)}>Highlight</button>
                                     </li>
                                 ))}
                             </ol>
                         </div>
                         <div>
-                            <h3>Top Paths From Correlation</h3>
+                            <h3>Top Paths From Mut</h3>
                             <ol>
-                                {correlationTopPaths1.map((path, index) => (
+                                {betweennessTopPaths2.map((path, index) => (
                                     <li key={index}>
                                         <strong>Edge Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                        <button onClick={() => handleCorrelationHighlight(path, index)}>Highlight</button>
+                                        <button onClick={() => handleMutHighlight(path, index)}>Highlight</button>
                                     </li>
                                 ))}
                             </ol>
