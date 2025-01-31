@@ -22,6 +22,7 @@ function NewAllosteric() {
     const [correlationTopPaths1, setCorrelationTopPaths1] = useState([]);
     const [correlationTopPaths2, setCorrelationTopPaths2] = useState([]);
     const [deltaValues, setDeltaValues] = useState(new Map());
+    const [frequencyValues, setFrequencyValues] = useState(new Map());
     
     const [wtData, setWtData] = useState(null);
     const [mutData, setMutData] = useState(null);
@@ -47,7 +48,7 @@ function NewAllosteric() {
         setFlownessType(tabIndex);
 
         if (wtData !== null) {
-            render3dmol(wtData, mutData, 0, tabIndex, residueTable, 0, deltaValues);
+            render3dmol(wtData, mutData, 0, tabIndex, residueTable, 0, deltaValues, frequencyValues);
         }
     };
 
@@ -95,9 +96,10 @@ function NewAllosteric() {
             setBetweennessTopPaths2(mutData.top_paths);
             setCorrelationTopPaths2(mutData.top_paths2);
             setResidueTable(parsedTable);
-            let delta_map = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
+            let [delta_map, frequencies_map] = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
             setDeltaValues(delta_map);
-            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0, delta_map); // by default highlight top path from wt
+            setFrequencyValues(frequencies_map);
+            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0, delta_map, frequencies_map); // by default highlight top path from wt
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
@@ -109,14 +111,14 @@ function NewAllosteric() {
         console.log("Path index is: ", index);
         // Add your highlight logic here
 
-        render3dmol(wtData, mutData, 0, flownessType, residueTable, index, deltaValues);
+        render3dmol(wtData, mutData, 0, flownessType, residueTable, index, deltaValues, frequencyValues);
     };
 
     const handleMutHighlight = (path, index) => {
         console.log('Highlight clicked for path:', path);
         // Add your highlight logic here
 
-        render3dmol(wtData, mutData, 1, flownessType, residueTable, index, deltaValues);
+        render3dmol(wtData, mutData, 1, flownessType, residueTable, index, deltaValues, frequencyValues);
     };
 
     const calculateDeltaEdge = (paths1, paths2) => {
@@ -150,14 +152,17 @@ function NewAllosteric() {
 
         // First pass to compute deltas and find max absolute delta
         const rawDeltas = new Map();
+        const frequenciesMap = new Map();
         allEdges.forEach((edge) => {
             const frequency1 = edgeFrequency1.get(edge) || 0;
             const frequency2 = edgeFrequency2.get(edge) || 0;
+            const frequencies = `${frequency1} : ${frequency2}`;
             const delta = frequency1 - frequency2;
             rawDeltas.set(edge, delta);
+            frequenciesMap.set(edge, frequencies);
             maxDelta = Math.max(maxDelta, delta);
             minDelta = Math.min(minDelta, delta);
-        });
+        });        
 
         // Second pass to normalize deltas
         allEdges.forEach((edge) => {
@@ -167,10 +172,10 @@ function NewAllosteric() {
             deltaMap.set(edge, normalizedDelta);
         });
 
-        return deltaMap; // Map with keys as "node1-node2" and values as normalized delta
+        return [deltaMap, frequenciesMap]; // Map with keys as "node1-node2" and values as normalized delta
     };    
 
-    const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index, deltaMap) => {
+    const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index, deltaMap, frequencyMap) => {
         let universe = wt_data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
@@ -197,7 +202,7 @@ function NewAllosteric() {
         const highlightedEdges = new Map();
 
         // Function to add cylinders
-        const addCylinder = (edge, color) => {
+        const addCylinder = (edge, color, frequencies) => {
             viewer.addCylinder({
                 start: { x: edge.coords.start[0], y: edge.coords.start[1], z: edge.coords.start[2] },
                 end: { x: edge.coords.end[0], y: edge.coords.end[1], z: edge.coords.end[2] },
@@ -209,7 +214,7 @@ function NewAllosteric() {
                     tooltip.style.display = "block";
                     tooltip.style.left = `${event.clientX}px`;
                     tooltip.style.top = `${event.clientY + window.scrollY}px`;
-                    tooltip.innerHTML = `Edge Label: ${edge.label}`;
+                    tooltip.innerHTML = `Edge Label: ${edge.label}, Wt-Mut Frequencies: ${frequencies}`;
                 },
                 unhover_callback: function () {
                     tooltip.style.display = "none";
@@ -227,27 +232,21 @@ function NewAllosteric() {
         const getColorFromDelta = (delta) => {
             let r = 0, g = 0, b = 0;
 
-            console.log(delta, " is delta");
-
             if (delta < 0) {
                 // Negative deltas are shades of blue
                 b = 255
                 const intensity = Math.min(255, Math.floor(255 * Math.abs(delta))); // Higher magnitude -> darker blue
                 r = 255 - intensity
                 g = 255 - intensity
-                console.log(intensity, " is intensity");
             } else if (delta > 0) {
                 // Positive deltas are shades of red
                 r = 255
                 const intensity = Math.min(255, Math.floor(255 * delta)); // Higher magnitude -> darker red
                 b = 255 - intensity
                 g = 255 - intensity
-                console.log(intensity, " is intensity");
             } else {
                 r = 255, g = 255, b = 255;
             }
-
-            console.log(r, " is r ,", g, " is g ,", b, " is b");
 
             // Convert RGB to HEX and return the color
             return rgbToHex(r, g, b);
@@ -266,15 +265,17 @@ function NewAllosteric() {
                 //let edgeColor;
                 if (isHighlight && edge.path_index === top_path_index) {              
                     highlightedEdges.set(edgeKey, { ...edge, color: "orange" });
-                    addCylinder(edge, "orange");
+                    const frequency = frequencyMap.get(edgeKey) || "Empty";
+                    addCylinder(edge, "orange", frequency);
                 } 
 
                 // Process the edge
                 if (!highlightedEdges.has(edgeKey)) {
                     const delta = deltaMap.get(edgeKey) || 0; // Get delta or default to 0
+                    const frequency = frequencyMap.get(edgeKey) || "Empty";
                     let edgeColor = getColorFromDelta(delta);
                     highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
-                    addCylinder(edge, edgeColor);
+                    addCylinder(edge, edgeColor, frequency);
                 }
             });
         };
