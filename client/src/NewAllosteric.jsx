@@ -306,7 +306,7 @@ function NewAllosteric() {
             }
           );
 
-        const colors = ['orange', 'red', 'green', 'yellow', 'pink', 'purple', 'cyan', 'magenta', 'brown', 'silver', 'lime', 'black'];
+        const colors = ['#ffd3b6', '#ff8b94', '#dcedc1', '#ffffba', '#ffd4e5', '#eecbff', '#d4ffea', '#dbdcff', '#f7e7b4', '#ae5a41', '#68c4af', '#5a5255'];
 
         let colorIndex = 0;
 
