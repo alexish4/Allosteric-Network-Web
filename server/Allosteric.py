@@ -230,7 +230,9 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
                     'start': [float(c) for c in crd1],  # Convert NumPy array to Python list of floats
                     'end': [float(c) for c in crd2]  # Convert NumPy array to Python list of floats
                 }, 
-                'path_index': path_index
+                'path_index': path_index,
+                'node1_index': node1Index,
+                'node2_index': node2Index
             }
             
             edge_list.append(edge_data)

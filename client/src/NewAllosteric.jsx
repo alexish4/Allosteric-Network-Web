@@ -21,6 +21,7 @@ function NewAllosteric() {
     const [betweennessTopPaths2, setBetweennessTopPaths2] = useState([]);
     const [correlationTopPaths1, setCorrelationTopPaths1] = useState([]);
     const [correlationTopPaths2, setCorrelationTopPaths2] = useState([]);
+    const [deltaValues, setDeltaValues] = useState(new Map());
     
     const [wtData, setWtData] = useState(null);
     const [mutData, setMutData] = useState(null);
@@ -32,21 +33,21 @@ function NewAllosteric() {
 
     const handleDatFile1Change = (event) => {
         setDatFile1(event.target.files[0]);
-    }
+    };
 
     const handleDatFile2Change = (event) => {
         setDatFile2(event.target.files[0]);
-    }
+    };
 
     const handleAverageChoice = (event) => {
         setAverage(parseInt(event.target.value));
-      };
+    };
 
     const switchFlownessTypeTab = (tabIndex) => {
         setFlownessType(tabIndex);
 
         if (wtData !== null) {
-            render3dmol(wtData, mutData, 0, tabIndex, residueTable, 0);
+            render3dmol(wtData, mutData, 0, tabIndex, residueTable, 0, deltaValues);
         }
     };
 
@@ -94,7 +95,9 @@ function NewAllosteric() {
             setBetweennessTopPaths2(mutData.top_paths);
             setCorrelationTopPaths2(mutData.top_paths2);
             setResidueTable(parsedTable);
-            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0); // by default highlight top path from wt
+            let delta_map = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
+            setDeltaValues(delta_map);
+            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0, delta_map); // by default highlight top path from wt
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
@@ -106,17 +109,54 @@ function NewAllosteric() {
         console.log("Path index is: ", index);
         // Add your highlight logic here
 
-        render3dmol(wtData, mutData, 0, flownessType, residueTable, index);
+        render3dmol(wtData, mutData, 0, flownessType, residueTable, index, deltaValues);
     };
 
     const handleMutHighlight = (path, index) => {
         console.log('Highlight clicked for path:', path);
         // Add your highlight logic here
 
-        render3dmol(wtData, mutData, 1, flownessType, residueTable, index);
+        render3dmol(wtData, mutData, 1, flownessType, residueTable, index, deltaValues);
     };
 
-    const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index) => {
+    const calculateDeltaEdge = (paths1, paths2) => {
+        const edgeFrequency1 = new Map();
+        const edgeFrequency2 = new Map();
+        const deltaMap = new Map();
+    
+        // Helper function to count edge frequencies
+        const countEdgeFrequencies = (paths, edgeFrequency) => {
+            paths.forEach((path) => {
+                const nodes = path.nodes;
+                for (let i = 0; i < nodes.length - 1; i++) {
+                    const edge = `${nodes[i]}-${nodes[i + 1]}`; // Edge as "node1-node2"
+                    edgeFrequency.set(edge, (edgeFrequency.get(edge) || 0) + 1);
+                }
+            });
+        };
+    
+        // Count edge frequencies for paths1 and paths2
+        countEdgeFrequencies(paths1, edgeFrequency1);
+        countEdgeFrequencies(paths2, edgeFrequency2);
+    
+        // Calculate the delta for each unique edge
+        const allEdges = new Set([
+            ...edgeFrequency1.keys(),
+            ...edgeFrequency2.keys()
+        ]);
+    
+        allEdges.forEach((edge) => {
+            const frequency1 = edgeFrequency1.get(edge) || 0;
+            const frequency2 = edgeFrequency2.get(edge) || 0;
+            const delta = frequency1 - frequency2;
+            deltaMap.set(edge, delta);
+            //console.log(frequency1, " is frequency 1, ", frequency2, " is frequency 2, ", delta, " is delta, ", edge, " is edge");
+        });
+    
+        return deltaMap; // Map with keys as "node1-node2" and values as delta
+    };    
+
+    const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index, deltaMap) => {
         let universe = wt_data.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
@@ -163,22 +203,64 @@ function NewAllosteric() {
             });
         };
 
+        // Function to convert RGB to HEX
+        const rgbToHex = (r, g, b) => {
+            const toHex = (value) => value.toString(16).padStart(2, '0');
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        };
+
+        // Function to calculate color based on delta value
+        const getColorFromDelta = (delta) => {
+            let r = 0, g = 0, b = 0;
+
+            //console.log(delta, " is delta");
+
+            if (delta < 0) {
+                // Negative deltas are shades of blue
+                b = 255
+                const intensity = Math.min(255, Math.floor(255 * Math.abs(delta))); // Higher magnitude -> darker blue
+                r = 0 + intensity
+                g = 0 + intensity
+                console.log(intensity, " is intensity");
+            } else if (delta > 0) {
+                // Positive deltas are shades of red
+                r = 255
+                const intensity = Math.min(255, Math.floor(255 * delta)); // Higher magnitude -> darker red
+                b = 0 + intensity
+                g = 0 + intensity
+                console.log(intensity, " is intensity");
+            } else {
+                r = 130, g = 130, b = 130;
+            }
+
+            console.log(r, " is r ,", g, " is g ,", b, " is b");
+
+            // Convert RGB to HEX and return the color
+            return rgbToHex(r, g, b);
+        };
+
         // Function to process and highlight edges
         const processEdges = (edges, isHighlight) => {
             edges.forEach((edge) => {
-                const edgeKey = `${edge.coords.start.join(",")}-${edge.coords.end.join(",")}`;
-                const edgeColor = edge.path_index === top_path_index && isHighlight ? "blue" : "gray";
+                const edgeKey = `${edge.node1_index}-${edge.node2_index}`;
 
-                // Highlight only when necessary
-                if (isHighlight && edgeColor === "blue" && !highlightedEdges.has(edgeKey)) {
-                    console.log("Updating edge to blue:", edgeKey);
-                    highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
-                    addCylinder(edge, edgeColor);
+                if(!deltaMap.has(edgeKey)) {
+                    console.log("Edge ", edgeKey, " is not in delta map");
                 }
 
-                // Render remaining edges only if not highlighted
-                if (!isHighlight && !highlightedEdges.has(edgeKey)) {
-                    addCylinder(edge, "gray");
+                // Determine the edge color
+                //let edgeColor;
+                if (isHighlight && edge.path_index === top_path_index) {              
+                    highlightedEdges.set(edgeKey, { ...edge, color: "orange" });
+                    addCylinder(edge, "orange");
+                } 
+
+                // Process the edge
+                if (!highlightedEdges.has(edgeKey)) {
+                    const delta = deltaMap.get(edgeKey) || 0; // Get delta or default to 0
+                    let edgeColor = getColorFromDelta(delta);
+                    highlightedEdges.set(edgeKey, { ...edge, color: edgeColor });
+                    addCylinder(edge, edgeColor);
                 }
             });
         };
@@ -350,7 +432,7 @@ function NewAllosteric() {
                             <ol>
                                 {betweennessTopPaths1.map((path, index) => (
                                     <li key={index}>
-                                        <strong>Edge Length:</strong> {path.edge_length} <br />
+                                        <strong>Path Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
                                         <button onClick={() => handleWtHighlight(path, index)}>Highlight</button>
                                     </li>
@@ -362,7 +444,7 @@ function NewAllosteric() {
                             <ol>
                                 {betweennessTopPaths2.map((path, index) => (
                                     <li key={index}>
-                                        <strong>Edge Length:</strong> {path.edge_length} <br />
+                                        <strong>Path Length:</strong> {path.edge_length} <br />
                                         <strong>Nodes:</strong> {path.nodes.join(' → ')}
                                         <button onClick={() => handleMutHighlight(path, index)}>Highlight</button>
                                     </li>
