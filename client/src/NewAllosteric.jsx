@@ -145,15 +145,29 @@ function NewAllosteric() {
             ...edgeFrequency2.keys()
         ]);
     
+        let maxDelta = 0;
+        let minDelta = 0;
+
+        // First pass to compute deltas and find max absolute delta
+        const rawDeltas = new Map();
         allEdges.forEach((edge) => {
             const frequency1 = edgeFrequency1.get(edge) || 0;
             const frequency2 = edgeFrequency2.get(edge) || 0;
             const delta = frequency1 - frequency2;
-            deltaMap.set(edge, delta);
-            //console.log(frequency1, " is frequency 1, ", frequency2, " is frequency 2, ", delta, " is delta, ", edge, " is edge");
+            rawDeltas.set(edge, delta);
+            maxDelta = Math.max(maxDelta, delta);
+            minDelta = Math.min(minDelta, delta);
         });
-    
-        return deltaMap; // Map with keys as "node1-node2" and values as delta
+
+        // Second pass to normalize deltas
+        allEdges.forEach((edge) => {
+            const delta = rawDeltas.get(edge);
+            const deltaScale = delta < 0 ? minDelta : maxDelta;
+            const normalizedDelta = deltaScale !== 0 ? (Math.abs(delta) / deltaScale) : 0; // Avoid division by zero
+            deltaMap.set(edge, normalizedDelta);
+        });
+
+        return deltaMap; // Map with keys as "node1-node2" and values as normalized delta
     };    
 
     const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index, deltaMap) => {
@@ -213,24 +227,24 @@ function NewAllosteric() {
         const getColorFromDelta = (delta) => {
             let r = 0, g = 0, b = 0;
 
-            //console.log(delta, " is delta");
+            console.log(delta, " is delta");
 
             if (delta < 0) {
                 // Negative deltas are shades of blue
                 b = 255
                 const intensity = Math.min(255, Math.floor(255 * Math.abs(delta))); // Higher magnitude -> darker blue
-                r = 0 + intensity
-                g = 0 + intensity
+                r = 255 - intensity
+                g = 255 - intensity
                 console.log(intensity, " is intensity");
             } else if (delta > 0) {
                 // Positive deltas are shades of red
                 r = 255
                 const intensity = Math.min(255, Math.floor(255 * delta)); // Higher magnitude -> darker red
-                b = 0 + intensity
-                g = 0 + intensity
+                b = 255 - intensity
+                g = 255 - intensity
                 console.log(intensity, " is intensity");
             } else {
-                r = 130, g = 130, b = 130;
+                r = 255, g = 255, b = 255;
             }
 
             console.log(r, " is r ,", g, " is g ,", b, " is b");
