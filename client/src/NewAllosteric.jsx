@@ -23,6 +23,7 @@ function NewAllosteric() {
     const [correlationTopPaths2, setCorrelationTopPaths2] = useState([]);
     const [deltaValues, setDeltaValues] = useState(new Map());
     const [frequencyValues, setFrequencyValues] = useState(new Map());
+    const [showResults, setShowResults] = useState(false);
     
     const [wtData, setWtData] = useState(null);
     const [mutData, setMutData] = useState(null);
@@ -99,7 +100,8 @@ function NewAllosteric() {
             let [delta_map, frequencies_map] = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
             setDeltaValues(delta_map);
             setFrequencyValues(frequencies_map);
-            render3dmol(wtData, mutData, 0, flownessType, parsedTable, 0, delta_map, frequencies_map); // by default highlight top path from wt
+            render3dmol(wtData, mutData, 0, flownessType, parsedTable, -1, delta_map, frequencies_map); // by default don't highlight top path
+            setShowResults(true);
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
@@ -365,8 +367,31 @@ function NewAllosteric() {
         viewer.zoomTo();                                      
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   
-    }
+    };
 
+    const ColorScale = () => {
+        return (
+            <svg width="500" height="60">
+                {/* Gradient Definition */}
+                <defs>
+                    <linearGradient id="colorGradient" x1="0%" x2="100%" y1="0%" y2="0%">
+                        <stop offset="0%" stopColor="blue" />
+                        <stop offset="50%" stopColor="white" />
+                        <stop offset="100%" stopColor="red" />
+                    </linearGradient>
+                </defs>
+    
+                {/* Gradient Bar */}
+                <rect x="50" y="20" width="400" height="25" fill="url(#colorGradient)" stroke="black" />
+    
+                {/* Labels */}
+                <text x="50" y="15" fontSize="14" fill="blue">More important in Mut</text>
+                <text x="250" y="55" fontSize="14" fill="black" textAnchor="middle">Neutral</text>
+                <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">More important in Wt</text>
+            </svg>
+        );
+    };    
+    
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
@@ -430,7 +455,23 @@ function NewAllosteric() {
                 <button onClick={() => switchFlownessTypeTab(0)} className={flownessType === 0 ? 'active-tab' : ''}>Betweenness</button>
                 <button onClick={() => switchFlownessTypeTab(1)} className={flownessType === 1 ? 'active-tab' : ''}>Correlation</button>
             </div>
+            
+            {showResults && (
+                <>
+                    <div style={{ color: 'red', fontWeight: 'bold', marginTop: '5px' }}>
+                        {sourceValues && `🔴 Source Values: ${sourceValues}`}
+                    </div>
 
+                    <div style={{ color: 'green', fontWeight: 'bold', marginTop: '5px' }}>
+                        {sinkValues && `🟢 Sink Values: ${sinkValues}`}
+                    </div>
+
+                    <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                        <h3>Edges Colored By Frequency</h3>
+                        <ColorScale />
+                    </div>             
+                </>
+            )}
 
             <div id="viewport" className="mol-container"></div>
 
