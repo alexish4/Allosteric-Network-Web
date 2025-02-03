@@ -24,6 +24,9 @@ function NewAllosteric() {
     const [deltaValues, setDeltaValues] = useState(new Map());
     const [frequencyValues, setFrequencyValues] = useState(new Map());
     const [showResults, setShowResults] = useState(false);
+    const [minDelta, setMinDelta] = useState(0);
+    const [maxDelta, setMaxDelta] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
     
     const [wtData, setWtData] = useState(null);
     const [mutData, setMutData] = useState(null);
@@ -74,6 +77,8 @@ function NewAllosteric() {
         formData2.append('k', numOfTopPaths);
         formData2.append('average', average);
 
+        setIsLoading(true);
+
         try {
             const response = await axios.post('/api/allosteric', formData, {
                 headers: {
@@ -106,6 +111,7 @@ function NewAllosteric() {
             console.error('Error:', error);
             alert('An error occurred while processing the files.');
         }        
+        setIsLoading(false);
     };
 
     const handleWtHighlight = (path, index) => {
@@ -149,8 +155,8 @@ function NewAllosteric() {
             ...edgeFrequency2.keys()
         ]);
     
-        let maxDelta = 0;
-        let minDelta = 0;
+        let max_delta = 0;
+        let min_delta = 0;
 
         // First pass to compute deltas and find max absolute delta
         const rawDeltas = new Map();
@@ -162,14 +168,17 @@ function NewAllosteric() {
             const delta = frequency1 - frequency2;
             rawDeltas.set(edge, delta);
             frequenciesMap.set(edge, frequencies);
-            maxDelta = Math.max(maxDelta, delta);
-            minDelta = Math.min(minDelta, delta);
+            max_delta = Math.max(max_delta, delta);
+            min_delta = Math.min(min_delta, delta);
         });        
+
+        setMinDelta(min_delta);
+        setMaxDelta(max_delta);
 
         // Second pass to normalize deltas
         allEdges.forEach((edge) => {
             const delta = rawDeltas.get(edge);
-            const deltaScale = delta < 0 ? minDelta : maxDelta;
+            const deltaScale = delta < 0 ? min_delta : max_delta;
             const normalizedDelta = deltaScale !== 0 ? (Math.abs(delta) / deltaScale) : 0; // Avoid division by zero
             deltaMap.set(edge, normalizedDelta);
         });
@@ -216,7 +225,7 @@ function NewAllosteric() {
                     tooltip.style.display = "block";
                     tooltip.style.left = `${event.clientX}px`;
                     tooltip.style.top = `${event.clientY + window.scrollY}px`;
-                    tooltip.innerHTML = `Edge Label: ${edge.label}, Wt-Mut Frequencies: ${frequencies}`;
+                    tooltip.innerHTML = `Edge Label: ${edge.label}, PDB1-PDB2 Frequencies: ${frequencies}`;
                 },
                 unhover_callback: function () {
                     tooltip.style.display = "none";
@@ -333,7 +342,7 @@ function NewAllosteric() {
                         atom: row["Atom Name"] // Atom Name from the table
                     },
                     {
-                        sphere: { radius: 2, color: 'red' } // Style for the selected atoms
+                        sphere: { radius: 1.0, color: 'red' } // Style for the selected atoms
                     }
                 );
             } else {
@@ -356,7 +365,7 @@ function NewAllosteric() {
                         atom: row["Atom Name"] // Atom Name from the table
                     },
                     {
-                        sphere: { radius: 2, color: 'green' } // Style for the selected atoms
+                        sphere: { radius: 1.0, color: 'green' } // Style for the selected atoms
                     }
                 );
             } else {
@@ -385,9 +394,9 @@ function NewAllosteric() {
                 <rect x="50" y="20" width="400" height="25" fill="url(#colorGradient)" stroke="black" />
     
                 {/* Labels */}
-                <text x="50" y="15" fontSize="14" fill="blue">More important in Mut</text>
-                <text x="250" y="55" fontSize="14" fill="black" textAnchor="middle">Neutral</text>
-                <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">More important in Wt</text>
+                <text x="50" y="15" fontSize="14" fill="blue">{minDelta}, SYSTEM 2</text>
+                <text x="250" y="55" fontSize="14" fill="black" textAnchor="middle">0</text>
+                <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">{maxDelta}, SYSTEM 1</text>
             </svg>
         );
     };    
@@ -458,20 +467,31 @@ function NewAllosteric() {
             
             {showResults && (
                 <>
-                    <div style={{ color: 'red', fontWeight: 'bold', marginTop: '5px' }}>
-                        {sourceValues && `🔴 Source Values: ${sourceValues}`}
-                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '10px' }}>
+                        {/* Left: Source & Sink Values */}
+                        <div style={{ flex: 1 }}>
+                            <div style={{ color: 'red', fontWeight: 'bold', marginBottom: '5px' }}>
+                                {sourceValues && `🔴 Source Values: ${sourceValues}`}
+                            </div>
 
-                    <div style={{ color: 'green', fontWeight: 'bold', marginTop: '5px' }}>
-                        {sinkValues && `🟢 Sink Values: ${sinkValues}`}
-                    </div>
+                            <div style={{ color: 'green', fontWeight: 'bold' }}>
+                                {sinkValues && `🟢 Sink Values: ${sinkValues}`}
+                            </div>
+                        </div>
 
-                    <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                        <h3>Edges Colored By Frequency</h3>
-                        <ColorScale />
-                    </div>             
+                        {/* Right: Color Scale */}
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                            <h3>Edges Colored By Delta Frequency</h3>
+                            <ColorScale />
+                        </div>
+                    </div>
+                    <div style={{ fontWeight: 'bold' }}>
+                        Hover Over Edges for More Info
+                    </div>
+                    
                 </>
             )}
+            {isLoading && <p>Loading, please wait...</p>}
 
             <div id="viewport" className="mol-container"></div>
 
@@ -484,7 +504,7 @@ function NewAllosteric() {
                 {activeSecondaryContentTab === 0 && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                         <div>
-                            <h3>Top Paths From Wt</h3>
+                            <h3>Top Paths From System 1</h3>
                             <ol>
                                 {betweennessTopPaths1.map((path, index) => (
                                     <li key={index}>
@@ -496,7 +516,7 @@ function NewAllosteric() {
                             </ol>
                         </div>
                         <div>
-                            <h3>Top Paths From Mut</h3>
+                            <h3>Top Paths From System 2</h3>
                             <ol>
                                 {betweennessTopPaths2.map((path, index) => (
                                     <li key={index}>

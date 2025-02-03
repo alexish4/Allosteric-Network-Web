@@ -172,8 +172,8 @@ def process_graph_data():
         pdb_content = file.read()
 
     pdb_universe = mda.Universe(pdb_file_path)
-    betweenness_edges = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe)
-    correlation_edges = create_3d_edges(top_paths_data2, pdb_df, G, pdb_universe)
+    betweenness_edges = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe, source_array, sink_array)
+    correlation_edges = create_3d_edges(top_paths_data2, pdb_df, G, pdb_universe, source_array, sink_array)
     #edge_list = []
 
     graph_data = {
@@ -193,8 +193,10 @@ def process_graph_data():
     
     return graph_data
 
-def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
+def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe, source_values, sink_values):
     edge_list = []
+
+    source_and_sink = source_values + sink_values
 
     path_index = 0 # to label which top path an edge is in
     for path in top_paths_data:
@@ -215,8 +217,11 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe):
             chainID1 = atom1['Chain ID']
             chainID2 = atom2['Chain ID']
 
-            residue1 = pdb_universe.select_atoms(f"resid {resID1} and segid {chainID1} and name CA")
-            residue2 = pdb_universe.select_atoms(f"resid {resID2} and segid {chainID2} and name CA")
+            atom1_name = atom1['Atom Name'].strip() if atom1['NewIndex'] in source_and_sink else "CA"
+            atom2_name = atom2['Atom Name'].strip() if atom2['NewIndex'] in source_and_sink else "CA"
+
+            residue1 = pdb_universe.select_atoms(f"resid {resID1} and segid {chainID1} and name {atom1_name}")
+            residue2 = pdb_universe.select_atoms(f"resid {resID2} and segid {chainID2} and name {atom2_name}")
 
             crd1 = residue1.center_of_mass()
             crd2 = residue2.center_of_mass()
