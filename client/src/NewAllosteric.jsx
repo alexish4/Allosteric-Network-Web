@@ -199,6 +199,8 @@ function NewAllosteric() {
         tooltip.style.border = '1px solid #ccc';
         tooltip.style.padding = '5px';
         tooltip.style.display = 'none';  // Hide by default
+        tooltip.style.color = 'black';
+
         document.body.appendChild(tooltip);
 
         console.log(graphIndex, " is graph index");
@@ -281,7 +283,7 @@ function NewAllosteric() {
                 } 
 
                 // Process the edge
-                if (!highlightedEdges.has(edgeKey)) {
+                if (!highlightedEdges.has(edgeKey) && !isHighlight) {
                     const delta = deltaMap.get(edgeKey) || 0; // Get delta or default to 0
                     const frequency = frequencyMap.get(edgeKey) || "Empty";
                     let edgeColor = getColorFromDelta(delta);
@@ -395,7 +397,7 @@ function NewAllosteric() {
     
                 {/* Labels */}
                 <text x="50" y="15" fontSize="14" fill="blue">{minDelta}, SYSTEM 2</text>
-                <text x="250" y="55" fontSize="14" fill="black" textAnchor="middle">0</text>
+                <text x="250" y="15" fontSize="14" fill="black" textAnchor="middle">0</text>
                 <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">{maxDelta}, SYSTEM 1</text>
             </svg>
         );
