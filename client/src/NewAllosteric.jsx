@@ -68,6 +68,7 @@ function NewAllosteric() {
     const handleSubmit = async () => {
         const formData = new FormData();
         formData.append('pdb_file', pdbFile1);
+        formData.append('render_pdb', pdbFile1);
         formData.append('trajectory', dcdFile1);
         formData.append('source_values', sourceValues);
         formData.append('sink_values', sinkValues);
@@ -76,6 +77,7 @@ function NewAllosteric() {
 
         const formData2 = new FormData();
         formData2.append('pdb_file', pdbFile2);
+        formData2.append('render_pdb', pdbFile1);
         formData2.append('trajectory', dcdFile2);
         formData2.append('source_values', sourceValues);
         formData2.append('sink_values', sinkValues);

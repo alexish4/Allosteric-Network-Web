@@ -103,7 +103,7 @@ def parse_int_ranges(input_string):
 
 def process_graph_data():
     pdb_file = request.files['pdb_file']
-    #render_pdb = request.files['render_pdb']
+    render_pdb = request.files['render_pdb']
     trajectory = request.files['trajectory']
     source_array = request.form['source_values']
     sink_array = request.form['sink_values']
@@ -126,15 +126,17 @@ def process_graph_data():
     # Generate unique filenames
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
     pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
+    render_pdb_path = f'Subtract_Files/{unique_id}render.pdb'
     dcd_file_path = f'Subtract_Files/{unique_id}_dcd_file1.dcd'
     pdb_file.save(pdb_file_path)
     trajectory.save(dcd_file_path)
+    render_pdb.save(render_pdb_path)
 
     dat_file = convert_trajectory_to_sparse_matrix(dcd_file_path, pdb_file_path)
     
     rows, cols, correlations = process_dat_file(dat_file)
     
-    pdb_df = pdb_to_dataframe(pdb_file_path)
+    pdb_df = pdb_to_dataframe(render_pdb_path)
     pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
     pdb_df['NewIndex']=range(0,len(pdb_df)) # have indices match up with positions from correlation matrix
     print(pdb_df.head(), "is pdb head")
@@ -212,7 +214,7 @@ def process_graph_data():
     with open(pdb_file_path, 'r') as file:
         pdb_content = file.read()
 
-    pdb_universe = mda.Universe(pdb_file_path)
+    pdb_universe = mda.Universe(render_pdb_path)
     betweenness_edges = create_3d_edges(top_paths_data, pdb_df, G, pdb_universe, source_array, sink_array)
     correlation_edges = create_3d_edges(top_paths_data2, pdb_df, G, pdb_universe, source_array, sink_array)
     #edge_list = []
