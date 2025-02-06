@@ -72,8 +72,7 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
 
     return LMI_matrix
 
-def process_dat_file(file):
-    data = np.loadtxt(file)
+def process_dat_file(data):
     num_nodes = data.shape[0]
     rows = []
     cols = []
@@ -104,7 +103,8 @@ def parse_int_ranges(input_string):
 
 def process_graph_data():
     pdb_file = request.files['pdb_file']
-    dat_file = request.files['correlation_dat']
+    #render_pdb = request.files['render_pdb']
+    trajectory = request.files['trajectory']
     source_array = request.form['source_values']
     sink_array = request.form['sink_values']
 
@@ -123,15 +123,16 @@ def process_graph_data():
     print(request.form['average'], "is average")
     print(all, "is all")
     
-    if dat_file.filename.endswith('.dat'):
-        rows, cols, correlations = process_dat_file(dat_file)
-    else:
-        return jsonify({'error': "Must Use Dat File!"}), 500
-    
     # Generate unique filenames
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
     pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
+    dcd_file_path = f'Subtract_Files/{unique_id}_dcd_file1.dcd'
     pdb_file.save(pdb_file_path)
+    trajectory.save(dcd_file_path)
+
+    dat_file = convert_trajectory_to_sparse_matrix(dcd_file_path, pdb_file_path)
+    
+    rows, cols, correlations = process_dat_file(dat_file)
     
     pdb_df = pdb_to_dataframe(pdb_file_path)
     pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')

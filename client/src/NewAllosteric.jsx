@@ -8,9 +8,10 @@ import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
 
 
 function NewAllosteric() {
-    const [pdbFile, setPdbFile] = useState(null);
-    const [datFile1, setDatFile1] = useState(null);
-    const [datFile2, setDatFile2] = useState(null);
+    const [pdbFile1, setPdbFile1] = useState(null);
+    const [pdbFile2, setPdbFile2] = useState(null);
+    const [dcdFile1, setDCDFile1] = useState(null);
+    const [dcdFile2, setDCDFile2] = useState(null);
     const [flownessType, setFlownessType] = useState(0);
     const [activeSecondaryContentTab, setActiveSecondaryContentTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
@@ -32,16 +33,20 @@ function NewAllosteric() {
     const [mutData, setMutData] = useState(null);
     const [residueTable, setResidueTable] = useState([]);
 
-    const handlePdbFileChange = (event) => {
-        setPdbFile(event.target.files[0]);
+    const handlePdbFile1Change = (event) => {
+        setPdbFile1(event.target.files[0]);
     };
 
-    const handleDatFile1Change = (event) => {
-        setDatFile1(event.target.files[0]);
+    const handlePdbFile2Change = (event) => {
+        setPdbFile2(event.target.files[0]);
     };
 
-    const handleDatFile2Change = (event) => {
-        setDatFile2(event.target.files[0]);
+    const handleDCDFile1Change = (event) => {
+        setDCDFile1(event.target.files[0]);
+    };
+
+    const handleDCDFile2Change = (event) => {
+        setDCDFile2(event.target.files[0]);
     };
 
     const handleAverageChoice = (event) => {
@@ -62,16 +67,16 @@ function NewAllosteric() {
 
     const handleSubmit = async () => {
         const formData = new FormData();
-        formData.append('pdb_file', pdbFile);
-        formData.append('correlation_dat', datFile1);
+        formData.append('pdb_file', pdbFile1);
+        formData.append('trajectory', dcdFile1);
         formData.append('source_values', sourceValues);
         formData.append('sink_values', sinkValues);
         formData.append('k', numOfTopPaths);
         formData.append('average', average);
 
         const formData2 = new FormData();
-        formData2.append('pdb_file', pdbFile);
-        formData2.append('correlation_dat', datFile2);
+        formData2.append('pdb_file', pdbFile2);
+        formData2.append('trajectory', dcdFile2);
         formData2.append('source_values', sourceValues);
         formData2.append('sink_values', sinkValues);
         formData2.append('k', numOfTopPaths);
@@ -406,9 +411,9 @@ function NewAllosteric() {
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
-            Please Submit PDB File: <input type="file" onChange={handlePdbFileChange} />
+            Please Submit PDB Files: <input type="file" onChange={handlePdbFile1Change} /> <input type="file" onChange={handlePdbFile2Change} />
             <br></br>
-            Please Submit DAT Files: <input type="file" onChange={handleDatFile1Change} /> <input type="file" onChange={handleDatFile2Change} />
+            Please Submit DCD Files (Match Order With PDB Files): <input type="file" onChange={handleDCDFile1Change} /> <input type="file" onChange={handleDCDFile2Change} />
             <br></br>
 
             Enter Source ID's
