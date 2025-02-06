@@ -9,7 +9,10 @@ from itertools import islice
 from collections import Counter
 import logging
 import MDAnalysis as mda
-from PDBCompareMethods import pdb_to_dataframe
+from PDBCompareMethods import pdb_to_dataframe, compute_pairwise_distances
+from calculate import calcMD_LMI
+from scipy.signal import argrelextrema
+from scipy.ndimage import gaussian_filter1d  # For smoothing
 
 def get_plots_and_protein_structure():
     pdb_file = request.files['pdb_file']
@@ -31,6 +34,43 @@ def get_plots_and_protein_structure():
     }
 
     return jsonify(plots)
+
+def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
+    LMI_matrix = calcMD_LMI(protein_pdb, trajectory,
+                         startingFrame=0, endingFrame=100,
+                         normalized=True, alignTrajectory=True,
+                         atomSelection='protein and (name CB or (name CA and resname GLY))',
+                         saveMatrix=False)
+    pdb_df = pdb_to_dataframe(protein_pdb)
+    pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
+    pdb_df['NewIndex']=range(0,len(pdb_df)) # have indices match up with positions from correlation matrix
+
+    # use distance to filter correlation
+    matrix = compute_pairwise_distances(pdb_df)
+    upper_triangle = matrix[np.triu_indices_from(matrix, k=1)]
+
+    num_bins = int(np.ceil(np.sqrt(len(upper_triangle))))  # Use square root choice for bins
+    counts, bin_edges = np.histogram(upper_triangle, bins=num_bins)
+
+    smoothed_counts = gaussian_filter1d(counts, sigma=2)  # Adjust sigma for smoothing level
+
+    # Identify local minima in the histogram
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Midpoints of bins
+    local_minima_indices = argrelextrema(smoothed_counts, np.less)[0]  # Indices of local minima
+
+    # Select the second local minimum
+    if len(local_minima_indices) >= 2:
+        second_local_min_index = local_minima_indices[1]  # Second local minimum
+        cutoff_distance = bin_centers[second_local_min_index]
+        print(f"Second local minimum cutoff: {cutoff_distance:.2f}")
+    else:
+        raise ValueError("Not enough local minima found in the histogram!")
+    
+    # creating filtered/sparse correlation matrix
+    matrix[matrix > cutoff_distance] = 0.000000
+    LMI_matrix[matrix == 0.000000] = 0.00000000
+
+    return LMI_matrix
 
 def process_dat_file(file):
     data = np.loadtxt(file)

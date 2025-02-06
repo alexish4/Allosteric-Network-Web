@@ -2,6 +2,7 @@ import MDAnalysis as mda
 import pandas as pd
 from flask import request, jsonify
 from Bio.PDB import PDBParser
+import numpy as np
 
 def pdb_to_dataframe(pdb_file):
     """
@@ -145,3 +146,22 @@ def extract_chains():
     except Exception as e:
         # Handle errors gracefully and provide feedback
         return jsonify({'error': str(e)}), 500
+    
+def compute_pairwise_distances(df):
+    """
+    Compute the pairwise Euclidean distances between residues based on their 3D coordinates.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing 'X', 'Y', 'Z' coordinates and 'NewIndex' as index.
+
+    Returns:
+    pd.DataFrame: A DataFrame containing the pairwise distance matrix.
+    """
+    # Extract the coordinates (X, Y, Z)
+    coordinates = df[['X', 'Y', 'Z']].values
+
+    # Calculate pairwise distances using broadcasting
+    diff = coordinates[:, np.newaxis, :] - coordinates[np.newaxis, :, :]
+    distances = np.sqrt(np.sum(diff ** 2, axis=-1))
+
+    return distances
