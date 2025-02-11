@@ -52,7 +52,7 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
     num_bins = int(np.ceil(np.sqrt(len(upper_triangle))))  # Use square root choice for bins
     counts, bin_edges = np.histogram(upper_triangle, bins=num_bins)
 
-    smoothed_counts = gaussian_filter1d(counts, sigma=2)  # Adjust sigma for smoothing level
+    smoothed_counts = gaussian_filter1d(counts, sigma=1.1)  # Adjust sigma for smoothing level
 
     # Identify local minima in the histogram
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Midpoints of bins
@@ -62,12 +62,12 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
     if len(local_minima_indices) >= 2:
         second_local_min_index = local_minima_indices[1]  # Second local minimum
         cutoff_distance = bin_centers[second_local_min_index]
-        print(f"Second local minimum cutoff: {cutoff_distance:.2f}")
+        print(f"Second local minimum cutoff: {np.rint(cutoff_distance)}")
     else:
         raise ValueError("Not enough local minima found in the histogram!")
     
     # creating filtered/sparse correlation matrix
-    matrix[matrix > cutoff_distance] = 0.000000
+    matrix[matrix > np.rint(cutoff_distance)] = 0.000000
     LMI_matrix[matrix == 0.000000] = 0.00000000
 
     return LMI_matrix
