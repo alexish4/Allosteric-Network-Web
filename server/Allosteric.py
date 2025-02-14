@@ -12,7 +12,7 @@ import MDAnalysis as mda
 from PDBCompareMethods import pdb_to_dataframe, compute_pairwise_distances
 from calculate import calcMD_LMI
 from scipy.signal import argrelextrema
-from scipy.ndimage import gaussian_filter1d  # For smoothing
+from MDAnalysis.analysis.distances import distance_array
 
 def get_plots_and_protein_structure():
     pdb_file = request.files['pdb_file']
@@ -41,34 +41,33 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
                          normalized=True, alignTrajectory=True,
                          atomSelection='protein and (name CB or (name CA and resname GLY))',
                          saveMatrix=False)
-    pdb_df = pdb_to_dataframe(protein_pdb)
-    pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
-    pdb_df['NewIndex']=range(0,len(pdb_df)) # have indices match up with positions from correlation matrix
+    print(LMI_matrix[:10][:10])
+    # create contact matrix
+    u = mda.Universe(protein_pdb, trajectory)
+    # Select all atoms
+    selection = u.select_atoms("protein and (name CB or (name CA and resname GLY))")
 
-    # use distance to filter correlation
-    matrix = compute_pairwise_distances(pdb_df)
-    upper_triangle = matrix[np.triu_indices_from(matrix, k=1)]
+    num_atoms = len(selection)
 
-    num_bins = int(np.ceil(np.sqrt(len(upper_triangle))))  # Use square root choice for bins
-    counts, bin_edges = np.histogram(upper_triangle, bins=num_bins)
+    # Threshold and percentage criteria
+    distance_threshold = 8.0  # 8 Å
+    min_fraction = 0.75  # 75%
 
-    smoothed_counts = gaussian_filter1d(counts, sigma=1.1)  # Adjust sigma for smoothing level
+    # Initialize array to count frames where distance <= 8 Å
+    contact_count = np.zeros((num_atoms, num_atoms), dtype=int)
 
-    # Identify local minima in the histogram
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2  # Midpoints of bins
-    local_minima_indices = argrelextrema(smoothed_counts, np.less)[0]  # Indices of local minima
+    # Compute distances for frames 0 to 100
+    total_frames = 101  # Frames 0 to 100
+    for ts in u.trajectory[:total_frames]:
+        dist_matrix = distance_array(selection.positions, selection.positions)
+        contact_count += (dist_matrix <= distance_threshold).astype(int)
 
-    # Select the second local minimum
-    if len(local_minima_indices) >= 2:
-        second_local_min_index = local_minima_indices[1]  # Second local minimum
-        cutoff_distance = bin_centers[second_local_min_index]
-        print(f"Second local minimum cutoff: {np.rint(cutoff_distance)}")
-    else:
-        raise ValueError("Not enough local minima found in the histogram!")
-    
-    # creating filtered/sparse correlation matrix
-    matrix[matrix > np.rint(cutoff_distance)] = 0.000000
-    LMI_matrix[matrix == 0.000000] = 0.00000000
+    # Create binary contact matrix (1 if condition met, else 0)
+    contact_matrix = (contact_count >= (min_fraction * total_frames)).astype(int)
+    print(contact_matrix[:10][:10])
+
+    LMI_matrix = contact_matrix * LMI_matrix
+    print(LMI_matrix[:10][:10])
 
     return LMI_matrix
 
@@ -120,8 +119,6 @@ def process_graph_data():
         k = int(request.form['k'])
     if int(request.form['average']) == 1:
         all = True
-    print(request.form['average'], "is average")
-    print(all, "is all")
     
     # Generate unique filenames
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
@@ -133,14 +130,13 @@ def process_graph_data():
     render_pdb.save(render_pdb_path)
 
     dat_file = convert_trajectory_to_sparse_matrix(dcd_file_path, pdb_file_path)
+    print("returned from sparse matrix method")
     
     rows, cols, correlations = process_dat_file(dat_file)
     
     pdb_df = pdb_to_dataframe(render_pdb_path)
     pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
     pdb_df['NewIndex']=range(0,len(pdb_df)) # have indices match up with positions from correlation matrix
-    print(pdb_df.head(), "is pdb head")
-    print(len(pdb_df), "is length of df")
 
     adj_matrix = coo_matrix((correlations, (rows, cols)))
 
@@ -167,7 +163,6 @@ def process_graph_data():
         for so in source_array:
             for si in source_array:
                 array_of_graphs.append(G.copy())
-    print(len(array_of_graphs))
 
     #need the average graph because this is the graph we are drawing
     for u, v, data in G.edges(data=True):
@@ -183,15 +178,12 @@ def process_graph_data():
         data['edge_length2'] = edge_length2
 
     if not all:
-        print("Running first version of top paths")
         top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, source_array, sink_array)
 
     else:
         top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, sink_array)
 
     # Create the top_paths_data using path_lengths_edge_weights and top_paths_2
-    print(top_paths, "is top paths")
-    print(pdb_df.columns, "are columns")
     top_paths_data = [
         {'edge_length': top_paths_lengths[i], 'nodes': top_paths[i]}
         for i in range(len(top_paths))  
@@ -376,9 +368,6 @@ def generateTopPaths(G, k, source_array, sink_array):
     most_important_nodes = [(node, freq) for node, freq in node_frequencies.most_common()]
     most_important_nodes2 = [(node, freq) for node, freq in node_frequencies2.most_common()]
 
-    print(most_important_nodes)
-    print(most_important_nodes2)
-
     return top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2
 
 def generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, sink_array):
@@ -435,9 +424,6 @@ def generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, 
     # Create a list of (node, frequency_value) tuples sorted by frequency
     most_important_nodes = [(node, freq) for node, freq in node_frequencies.most_common()]
     most_important_nodes2 = [(node, freq) for node, freq in node_frequencies2.most_common()]
-
-    print(most_important_nodes)
-    print(most_important_nodes2)
 
     return top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2
 
