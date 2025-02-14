@@ -66,58 +66,87 @@ function NewAllosteric() {
     };
 
     const handleSubmit = async () => {
-        const formData = new FormData();
-        formData.append('pdb_file', pdbFile1);
-        formData.append('render_pdb', pdbFile1);
-        formData.append('trajectory', dcdFile1);
-        formData.append('source_values', sourceValues);
-        formData.append('sink_values', sinkValues);
-        formData.append('k', numOfTopPaths);
-        formData.append('average', average);
+        const sparseMatrixFormData1 = new FormData();
+        sparseMatrixFormData1.append('pdb_file', pdbFile1);
+        sparseMatrixFormData1.append('trajectory', dcdFile1);
 
-        const formData2 = new FormData();
-        formData2.append('pdb_file', pdbFile2);
-        formData2.append('render_pdb', pdbFile1);
-        formData2.append('trajectory', dcdFile2);
-        formData2.append('source_values', sourceValues);
-        formData2.append('sink_values', sinkValues);
-        formData2.append('k', numOfTopPaths);
-        formData2.append('average', average);
-
-        setIsLoading(true);
+        const sparseMatrixFormData2 = new FormData();
+        sparseMatrixFormData2.append('pdb_file', pdbFile2);
+        sparseMatrixFormData2.append('trajectory', dcdFile2);
 
         try {
-            const response = await axios.post('/api/allosteric', formData, {
+            const sparse_response = await axios.post('/api/get-sparse-matrix', sparseMatrixFormData1, {
                 headers: {
                     'Content-Type' : 'multipart/form-data',
                 },
             });
 
-            const response2 = await axios.post('/api/allosteric', formData2, {
+            const sparse_matrix = sparse_response.data.matrix;
+            const unique_id1 = sparse_response.data.unique_id;
+
+            const sparse_response2 = await axios.post('/api/get-sparse-matrix', sparseMatrixFormData2, {
                 headers: {
                     'Content-Type' : 'multipart/form-data',
                 },
             });
+            const sparse_matrix2 = sparse_response2.data.matrix;
+            const unique_id2 = sparse_response2.data.unique_id;
 
-            const wtData = response.data;
-            const mutData = response2.data;
-            const parsedTable = JSON.parse(wtData.table);
-            setWtData(wtData);
-            setMutData(mutData);
-            setBetweennessTopPaths1(wtData.top_paths);
-            setCorrelationTopPaths1(wtData.top_paths2);
-            setBetweennessTopPaths2(mutData.top_paths);
-            setCorrelationTopPaths2(mutData.top_paths2);
-            setResidueTable(parsedTable);
-            let [delta_map, frequencies_map] = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
-            setDeltaValues(delta_map);
-            setFrequencyValues(frequencies_map);
-            render3dmol(wtData, mutData, 0, flownessType, parsedTable, -1, delta_map, frequencies_map); // by default don't highlight top path
-            setShowResults(true);
-        } catch (error) {
+            const formData1 = new FormData();
+            formData1.append('render_pdb', pdbFile1);
+            formData1.append('sparse_matrix', sparse_matrix);
+            formData1.append('source_values', sourceValues);
+            formData1.append('sink_values', sinkValues);
+            formData1.append('k', numOfTopPaths);
+            formData1.append('average', average);
+            formData1.append('unique_hex', unique_id1);
+
+            const formData2 = new FormData();
+            formData2.append('render_pdb', pdbFile1);
+            formData2.append('sparse_matrix', sparse_matrix2);
+            formData2.append('source_values', sourceValues);
+            formData2.append('sink_values', sinkValues);
+            formData2.append('k', numOfTopPaths);
+            formData2.append('unique_hex', unique_id2);
+
+            setIsLoading(true);
+
+            try {
+                const response = await axios.post('/api/allosteric', formData1, {
+                    headers: {
+                        'Content-Type' : 'multipart/form-data',
+                    },
+                });
+
+                const response2 = await axios.post('/api/allosteric', formData2, {
+                    headers: {
+                        'Content-Type' : 'multipart/form-data',
+                    },
+                });
+
+                const wtData = response.data;
+                const mutData = response2.data;
+                const parsedTable = JSON.parse(wtData.table);
+                setWtData(wtData);
+                setMutData(mutData);
+                setBetweennessTopPaths1(wtData.top_paths);
+                setCorrelationTopPaths1(wtData.top_paths2);
+                setBetweennessTopPaths2(mutData.top_paths);
+                setCorrelationTopPaths2(mutData.top_paths2);
+                setResidueTable(parsedTable);
+                let [delta_map, frequencies_map] = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
+                setDeltaValues(delta_map);
+                setFrequencyValues(frequencies_map);
+                render3dmol(wtData, mutData, 0, flownessType, parsedTable, -1, delta_map, frequencies_map); // by default don't highlight top path
+                setShowResults(true);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing the files.');
+            }        
+        } catch {
             console.error('Error:', error);
-            alert('An error occurred while processing the files.');
-        }        
+            alert('Error occured generating correlation matrix from trajectory files');
+        }
         setIsLoading(false);
     };
 

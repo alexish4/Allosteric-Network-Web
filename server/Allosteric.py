@@ -13,6 +13,7 @@ from PDBCompareMethods import pdb_to_dataframe, compute_pairwise_distances
 from calculate import calcMD_LMI
 from scipy.signal import argrelextrema
 from MDAnalysis.analysis.distances import distance_array
+import json
 
 def get_plots_and_protein_structure():
     pdb_file = request.files['pdb_file']
@@ -35,15 +36,25 @@ def get_plots_and_protein_structure():
 
     return jsonify(plots)
 
-def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
-    LMI_matrix = calcMD_LMI(protein_pdb, trajectory,
+def convert_trajectory_to_sparse_matrix():
+    pdb_file = request.files['pdb_file']
+    trajectory = request.files['trajectory']
+
+    # Generate unique filenames
+    unique_id = uuid.uuid4().hex  # Generate a unique identifier
+    pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
+    dcd_file_path = f'Subtract_Files/{unique_id}_dcd_file1.dcd'
+    pdb_file.save(pdb_file_path)
+    trajectory.save(dcd_file_path)
+
+    LMI_matrix = calcMD_LMI(pdb_file_path, dcd_file_path,
                          startingFrame=0, endingFrame=100,
                          normalized=True, alignTrajectory=True,
                          atomSelection='protein and (name CB or (name CA and resname GLY))',
                          saveMatrix=False)
     print(LMI_matrix[:10][:10])
     # create contact matrix
-    u = mda.Universe(protein_pdb, trajectory)
+    u = mda.Universe(pdb_file_path, dcd_file_path)
     # Select all atoms
     selection = u.select_atoms("protein and (name CB or (name CA and resname GLY))")
 
@@ -69,7 +80,7 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
     LMI_matrix = contact_matrix * LMI_matrix
     print(LMI_matrix[:10][:10])
 
-    return LMI_matrix
+    return LMI_matrix, unique_id
 
 def process_dat_file(data):
     num_nodes = data.shape[0]
@@ -101,15 +112,14 @@ def parse_int_ranges(input_string):
   return int_list
 
 def process_graph_data():
-    pdb_file = request.files['pdb_file']
     render_pdb = request.files['render_pdb']
-    trajectory = request.files['trajectory']
+    sparse_matrix = request.files['sparse_matrix']
     source_array = request.form['source_values']
     sink_array = request.form['sink_values']
+    unique_id = request.form['unique_hex']
 
     source_array = parse_int_ranges(source_array)
     sink_array = parse_int_ranges(sink_array)
-
 
     all = False #calculate average or all
     
@@ -120,19 +130,12 @@ def process_graph_data():
     if int(request.form['average']) == 1:
         all = True
     
-    # Generate unique filenames
-    unique_id = uuid.uuid4().hex  # Generate a unique identifier
-    pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
     render_pdb_path = f'Subtract_Files/{unique_id}render.pdb'
-    dcd_file_path = f'Subtract_Files/{unique_id}_dcd_file1.dcd'
-    pdb_file.save(pdb_file_path)
-    trajectory.save(dcd_file_path)
     render_pdb.save(render_pdb_path)
 
-    dat_file = convert_trajectory_to_sparse_matrix(dcd_file_path, pdb_file_path)
-    print("returned from sparse matrix method")
+    sparse_matrix = np.array(json.loads(sparse_matrix))
     
-    rows, cols, correlations = process_dat_file(dat_file)
+    rows, cols, correlations = process_dat_file(sparse_matrix)
     
     pdb_df = pdb_to_dataframe(render_pdb_path)
     pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')

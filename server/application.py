@@ -61,6 +61,12 @@ def rerender_salt():
 def extract_chains_from_pdb():
     return PDBCompareMethods.extract_chains()
 
+@app.route('/api/get-sparse-matrix', methods=['POST'])
+def get_sparse_matrix():
+    matrix, unique_id = Allosteric.convert_trajectory_to_sparse_matrix()
+    matrix_list = matrix.tolist()  # Convert NumPy matrix to list
+    return jsonify({"matrix": matrix_list, "unique_id": unique_id})  # Send as JSON
+
 @app.route('/api/allosteric', methods=['POST'])
 def allosteric_plots():
     return Allosteric.process_graph_data()
