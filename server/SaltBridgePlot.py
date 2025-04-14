@@ -295,7 +295,7 @@ def generate_salt_plot(pdb_file1, pdb_file2, unique_id):
     buffer.close()
     plt.close()
 
-    sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
+    sub = sub[(sub['Distance_wt'] < 5) | (sub['Distance_mut'] < 5)]
 
     sub_rm=sub.query('ResidueName1 != ResidueName2')
     sub_rm['Res-pair']=sub_rm['ResidueName1'].astype(str)+'-'+sub_rm['ResidueName2'].astype(str)

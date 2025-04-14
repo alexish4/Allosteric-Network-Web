@@ -199,7 +199,7 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id):
     'ChainID2':matrixA['ChainID2']}
     sub=pd.DataFrame(sub)
 
-    filtered_sub = sub[(sub['Distance_wt'] < 15) & (sub['Distance_mut'] < 15)]
+    filtered_sub = sub[(sub['Distance_wt'] < 5) | (sub['Distance_mut'] < 5)]
 
     filtered_sub.to_csv(f"Subtract_Files/{unique_id}_saved_sub.csv", index=False)
 
