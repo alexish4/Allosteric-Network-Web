@@ -32,6 +32,7 @@ function PDBCompare() {
     const [chainRanges, setChainRanges] = useState({});
     const [edgesTable, setEdgesTable] = useState([]);
     const [uniqueID, setUniqueID] = useState('');
+    const [renderData, setRenderData] = useState('');
 
     const handleRerender = async () => {
         const formData = new FormData();
@@ -63,6 +64,7 @@ function PDBCompare() {
                 });
             }
             const data = response.data;
+            setRenderData(data);
             const parsedTable = JSON.parse(data.table);
             console.log('Parsed table data:', parsedTable);
 
@@ -179,6 +181,7 @@ function PDBCompare() {
                 },
             });
             const data = response.data;
+            setRenderData(data);
             const plots = response.data;
             setsubtractionPlot(plots.calculated_matrix_image);
             setSaltPlot(plots.salt_plot_image);
@@ -195,6 +198,10 @@ function PDBCompare() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleView = async () => {
+        render3dmol(renderData);
     };
 
     const render3dmol = async (data) => {
@@ -269,7 +276,7 @@ function PDBCompare() {
         viewer.zoomTo();                                      
         viewer.render();                                     
         viewer.zoom(1.2, 1000);   
-    }
+    };
 
     useEffect(() => {
         if (!distributionPlot && activePlotTypeTab == 0) {
@@ -400,6 +407,11 @@ function PDBCompare() {
                 />
             )}
         </div>
+        {showRenderOptions && (
+            <button onClick={handleView} style={{ marginLeft: '10px', padding: '5px' }}>
+                Reset View
+            </button>
+        )}
         <table>
             <thead>
                 <tr>
