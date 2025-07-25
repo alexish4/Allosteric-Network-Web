@@ -135,9 +135,9 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
 
     # Making sure format matches
     first_chain_id = current_df['ChainID1'].iloc[0]
-    if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
-        edges_df['ChainID1'] = edges_df['ChainID1'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
-        edges_df['ChainID2'] = edges_df['ChainID2'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+    # if first_chain_id in {'PROA', 'PROB', 'PROC', 'PROD'}:
+    #     edges_df['ChainID1'] = edges_df['ChainID1'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
+    #     edges_df['ChainID2'] = edges_df['ChainID2'].replace({'A': 'PROA', 'B': 'PROB', 'C': 'PROC', 'D': 'PROD'})
 
     edges_df = edges_df.drop("Distance", axis=1, errors="ignore")
 
@@ -154,16 +154,35 @@ def filter_by_edge_file(current_csv, csv_with_edges_to_filter_by):
     
     return filtered_df
 
-def get_plots(pdb_file1_path, pdb_file2_path, unique_id):
+def get_plots(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, residue_ranges):
 # Load your first PDB file
     pdb_file1 = pdb_file1_path  
     sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
     # sys1['System']='WT'
+
+    sys1 = sys1[
+        sys1.apply(
+            lambda row: (
+                row['Chain ID'] in selected_chains and
+                any(start <= row['Residue ID'] <= end for start, end in residue_ranges.get(row['Chain ID'], []))
+            ),
+            axis=1
+        )
+    ]
     sys1 = sys1.reset_index()
 
     # Load your second PDB file 
     pdb_file2 = pdb_file2_path 
     sys2 = PDBCompareMethods.pdb_to_dataframe(pdb_file2)
+    sys2 = sys2[
+        sys2.apply(
+            lambda row: (
+                row['Chain ID'] in selected_chains and
+                any(start <= row['Residue ID'] <= end for start, end in residue_ranges.get(row['Chain ID'], []))
+            ),
+            axis=1
+        )
+    ]
     sys2=sys2.reset_index()
 
     # Extract residue IDs from both PDB files
@@ -177,6 +196,8 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id):
     # extract CB/GLY CA data for each residue
     filtered_df1 = PDBCompareMethods.filter_by_residue_ids(sys1, common_residue_ids)
     filtered_cb1 = filtered_df1.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
+
+    print(filtered_cb1, "is filtered cb1")
 
     filtered_df2 = PDBCompareMethods.filter_by_residue_ids(sys2, common_residue_ids)
     filtered_cb2 = filtered_df2.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
@@ -268,6 +289,13 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id):
 def get_plots_and_protein_structure():
     pdb_file1 = request.files['pdb_file1']
     pdb_file2 = request.files['pdb_file2']
+    selected_chains = json.loads(request.form.get('chains'))
+    chain_ranges = json.loads(request.form.get('residue_ranges'))
+
+    validated_ranges = {}
+    for chain, ranges_str in chain_ranges.items():
+        if ranges_str:
+            validated_ranges[chain] = PDBCompareMethods.parse_ranges(ranges_str)
 
     # Generate unique filenames
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
@@ -276,8 +304,8 @@ def get_plots_and_protein_structure():
     pdb_file1.save(pdb_file1_path)
     pdb_file2.save(pdb_file2_path)
 
-    calculated_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path, unique_id)
-    salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path, unique_id)
+    calculated_matrix_image, distribution_graph = get_plots(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, validated_ranges)
+    salt_plot_image, salt_distribution_image = SaltBridgePlot.generate_salt_plot(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, validated_ranges)
 
     with open(pdb_file1_path, 'r') as file:
         pdb_content = file.read()

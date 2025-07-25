@@ -81,11 +81,29 @@ def recalculate_from_new_cutoff_value():
 
     return structure
 
-def generate_salt_plot(pdb_file1, pdb_file2, unique_id):
+def generate_salt_plot(pdb_file1, pdb_file2, unique_id, selected_chains, residue_ranges):
     sys1 = PDBCompareMethods.pdb_to_dataframe(pdb_file1)
+    sys1 = sys1[
+        sys1.apply(
+            lambda row: (
+                row['Chain ID'] in selected_chains and
+                any(start <= row['Residue ID'] <= end for start, end in residue_ranges.get(row['Chain ID'], []))
+            ),
+            axis=1
+        )
+    ]
     sys1 = sys1.reset_index()
 
     sys2 = PDBCompareMethods.pdb_to_dataframe(pdb_file2)
+    sys2 = sys2[
+        sys2.apply(
+            lambda row: (
+                row['Chain ID'] in selected_chains and
+                any(start <= row['Residue ID'] <= end for start, end in residue_ranges.get(row['Chain ID'], []))
+            ),
+            axis=1
+        )
+    ]
     sys2 = sys2.reset_index()
 
     u_wt=mda.Universe(pdb_file1, pdb_file1)

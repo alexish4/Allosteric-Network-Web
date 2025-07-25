@@ -29,6 +29,7 @@ function PDBCompare() {
     const [lowerBound, setLowerBound] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [selectedChains, setSelectedChains] = useState({});
+    const [chainsInput, setChainsInput] = useState("");
     const [chainRanges, setChainRanges] = useState({});
     const [edgesTable, setEdgesTable] = useState([]);
     const [uniqueID, setUniqueID] = useState('');
@@ -117,6 +118,14 @@ function PDBCompare() {
         }));
     };
 
+    const handleInitialChains = (e) => {
+        setChainsInput(e.target.value);
+        const chainsArray = e.target.value.split(",").map(c => c.trim()).filter(c => c !== "");
+        const ranges = {};
+        chainsArray.forEach(c => { ranges[c] = chainRanges[c] || ""; });
+        setChainRanges(ranges);
+    };
+
     const handleRangeInput = (chain, input) => {
         const rangesArray = input.split(',').map(range => range.trim());
         const parsed = rangesArray.map(range => {
@@ -158,16 +167,65 @@ function PDBCompare() {
                 },
             });
 
-            const initialSelectedChains = {};
-            console.log(chain_response.data, "Chain response from backend");
             const chain_data = chain_response.data;
-            const chains = chain_data.chains;
-            chains.forEach(chain => {
-                initialSelectedChains[chain] = true;
+            console.log(chain_data, "Chain response from backend");
+
+            const pdbChains = chain_data.chains; // e.g., ["PROA", "PROB"]
+
+            // Convert user input (comma-separated chains) to a normalized list
+            const userChains = chainsInput.split(",").map(c => c.trim().toUpperCase()); 
+            console.log(userChains, "User-entered chains");
+
+            // Create initialSelectedChains, mapping user input to matching PDB chains
+            const initialSelectedChains = {};
+            pdbChains.forEach(pdbChain => {
+                // Check if any user chain is a substring or prefix of the pdbChain
+                const match = userChains.some(userChain => pdbChain.includes(userChain));
+                if (match) {
+                    initialSelectedChains[pdbChain] = true;
+                }
             });
+
+            // If no matches found, alert user
+            if (Object.keys(initialSelectedChains).length === 0) {
+                alert(`No matching chains found for: ${userChains.join(", ")}`);
+            }
+
+            // If no matches found OR user didn't enter anything, select all chains
+            if (Object.keys(initialSelectedChains).length === 0) {
+                console.warn("No user chains matched or user input empty, selecting all chains.");
+                initialSelectedChains = {};
+                pdbChains.forEach(pdbChain => {
+                    initialSelectedChains[pdbChain] = true;
+                });
+            }
+
+            // If chainRanges is empty or missing values, create default ranges for all chains
+            const defaultRanges = {};
+
+            // Ensure chainRanges is an object
+            const currentRanges = (!chainRanges || typeof chainRanges === "string") 
+                ? {} 
+                : chainRanges;
+
+            // Only iterate over selected chains
+            for (const chain of Object.keys(initialSelectedChains)) {
+                if (!currentRanges[chain] || currentRanges[chain].trim() === "") {
+                    defaultRanges[chain] = "1-9999";  // Default full range
+                } else {
+                    defaultRanges[chain] = currentRanges[chain];
+                }
+            }
+
+            setChainRanges(defaultRanges);
 
             setSelectedChains(initialSelectedChains);
             console.log(initialSelectedChains, " are the selected chains");
+            console.log(defaultRanges, " are the ranges of the chains");
+
+            formData.append('chains', JSON.stringify(initialSelectedChains));
+            formData.append('residue_ranges', JSON.stringify(defaultRanges));
+
         } catch (error) {
             console.error('Error:', error);
             alert('Chain Format Issue');
@@ -303,6 +361,29 @@ function PDBCompare() {
                 <div>
                     <input type="file" onChange={handlePdbFile1Change} />
                     <input type="file" onChange={handlePdbFile2Change} />
+                    <div>
+                        <h3>Enter Chains (comma-separated):</h3>
+                        <input
+                            type="text"
+                            value={chainsInput}
+                            onChange={handleInitialChains}
+                            style={{ marginBottom: '20px', padding: '5px', width: '300px' }}
+                            placeholder="e.g., A,B,C"
+                        />
+
+                        {Object.keys(chainRanges).map(chain => (
+                            <div key={chain} style={{ marginBottom: '10px' }}>
+                                <label>Chain {chain}, Filter Residues(Optional):</label>
+                                <input
+                                    type="text"
+                                    value={chainRanges[chain]}
+                                    onChange={(e) => handleRangeInput(chain, e.target.value)}
+                                    style={{ marginLeft: '10px', padding: '5px' }}
+                                    placeholder="e.g., 44-50, 100-110"
+                                />
+                            </div>
+                        ))}
+                    </div>
                     <button onClick={handleSubmit}>Submit</button>
                 </div>
             )}
