@@ -121,10 +121,16 @@ function PDBCompare() {
     const handleInitialChains = (e) => {
         setChainsInput(e.target.value);
         const chainsArray = e.target.value.split(",").map(c => c.trim()).filter(c => c !== "");
-        const ranges = {};
-        chainsArray.forEach(c => { ranges[c] = chainRanges[c] || ""; });
-        setChainRanges(ranges);
+
+        setChainRanges(prev => {
+            const newRanges = {};
+            chainsArray.forEach(c => {
+                newRanges[c] = prev[c] || "";  // retain existing if available
+            });
+            return newRanges;
+        });
     };
+
 
     const handleRangeInput = (chain, input) => {
         const rangesArray = input.split(',').map(range => range.trim());
@@ -171,55 +177,46 @@ function PDBCompare() {
             console.log(chain_data, "Chain response from backend");
 
             const pdbChains = chain_data.chains; // e.g., ["PROA", "PROB"]
-
-            // Convert user input (comma-separated chains) to a normalized list
             const userChains = chainsInput.split(",").map(c => c.trim().toUpperCase()); 
             console.log(userChains, "User-entered chains");
 
-            // Create initialSelectedChains, mapping user input to matching PDB chains
-            const initialSelectedChains = {};
+            // === Build selected chain mapping ===
+            let initialSelectedChains = {};
             pdbChains.forEach(pdbChain => {
-                // Check if any user chain is a substring or prefix of the pdbChain
                 const match = userChains.some(userChain => pdbChain.includes(userChain));
                 if (match) {
                     initialSelectedChains[pdbChain] = true;
                 }
             });
 
-            // If no matches found, alert user
-            if (Object.keys(initialSelectedChains).length === 0) {
-                alert(`No matching chains found for: ${userChains.join(", ")}`);
-            }
-
-            // If no matches found OR user didn't enter anything, select all chains
+            // If nothing matched, select all chains
             if (Object.keys(initialSelectedChains).length === 0) {
                 console.warn("No user chains matched or user input empty, selecting all chains.");
-                initialSelectedChains = {};
                 pdbChains.forEach(pdbChain => {
                     initialSelectedChains[pdbChain] = true;
                 });
             }
 
-            // If chainRanges is empty or missing values, create default ranges for all chains
+            // === Map user ranges to PDB chains ===
+            const currentRanges = chainRanges;
+
             const defaultRanges = {};
+            for (const pdbChain of Object.keys(initialSelectedChains)) {
+                // Try to match user-input chain like "A" to "PROA"
+                const matchedUserChain = Object.keys(currentRanges).find(
+                    userChain => pdbChain.includes(userChain)
+                );
 
-            // Ensure chainRanges is an object
-            const currentRanges = (!chainRanges || typeof chainRanges === "string") 
-                ? {} 
-                : chainRanges;
-
-            // Only iterate over selected chains
-            for (const chain of Object.keys(initialSelectedChains)) {
-                if (!currentRanges[chain] || currentRanges[chain].trim() === "") {
-                    defaultRanges[chain] = "1-9999";  // Default full range
+                if (matchedUserChain && currentRanges[matchedUserChain].trim() !== "") {
+                    defaultRanges[pdbChain] = currentRanges[matchedUserChain];
                 } else {
-                    defaultRanges[chain] = currentRanges[chain];
+                    defaultRanges[pdbChain] = "1-9999";
                 }
             }
 
             setChainRanges(defaultRanges);
-
             setSelectedChains(initialSelectedChains);
+
             console.log(initialSelectedChains, " are the selected chains");
             console.log(defaultRanges, " are the ranges of the chains");
 
@@ -230,6 +227,7 @@ function PDBCompare() {
             console.error('Error:', error);
             alert('Chain Format Issue');
         }
+
 
         setIsLoading(true);
         try {
