@@ -7,33 +7,12 @@ import copy
 import networkx as nx
 from itertools import islice
 from collections import Counter
-import logging
+import pandas as pd
 import MDAnalysis as mda
 from PDBCompareMethods import pdb_to_dataframe, compute_pairwise_distances
 from calculate import calcMD_LMI
 from scipy.signal import argrelextrema
 from MDAnalysis.analysis.distances import distance_array
-
-def get_plots_and_protein_structure():
-    pdb_file = request.files['pdb_file']
-
-    # Generate unique filenames
-    unique_id = uuid.uuid4().hex  # Generate a unique identifier
-    pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
-    pdb_file.save(pdb_file_path)
-
-    with open(pdb_file_path, 'r') as file:
-        pdb_content = file.read()
-
-    edge_list = []
-
-    plots = {
-        'pdb_content' : pdb_content,
-        'edges' : edge_list,
-        'unique_id' : unique_id
-    }
-
-    return jsonify(plots)
 
 def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
     LMI_matrix = calcMD_LMI(protein_pdb, trajectory,
@@ -100,9 +79,9 @@ def parse_int_ranges(input_string):
       int_list.append(int(item))
   return int_list
 
-def process_graph_data():
+def process_graph_data(): # this is the MAIN method
     pdb_file = request.files['pdb_file']
-    render_pdb = request.files['render_pdb']
+    render_pdb = request.files['render_pdb'] # this method is run twice for both protein systems, this is so they use the same system as a reference for rendering the 3d edges
     trajectory = request.files['trajectory']
     source_array = request.form['source_values']
     sink_array = request.form['sink_values']
@@ -113,14 +92,14 @@ def process_graph_data():
 
     all = False #calculate average or all
     
-    k = 51 #by default k is 10
+    k = 51 #top number of paths
 
     if request.form['k'] != "": #if k has input
         k = int(request.form['k'])
     if int(request.form['average']) == 1:
         all = True
     
-    # Generate unique filenames
+    # Generate unique filenames, this is to save a copy of pdb and trajectory files onto cluster 
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
     pdb_file_path = f'Subtract_Files/{unique_id}_pdb_file1.pdb'
     render_pdb_path = f'Subtract_Files/{unique_id}render.pdb'
@@ -132,7 +111,7 @@ def process_graph_data():
     dat_file = convert_trajectory_to_sparse_matrix(dcd_file_path, pdb_file_path)
     print("returned from sparse matrix method")
     
-    rows, cols, correlations = process_dat_file(dat_file)
+    rows, cols, correlations = process_dat_file(dat_file) # this processes sparse matrix, method name is because used to have sparse matrix in dat file
     
     pdb_df = pdb_to_dataframe(render_pdb_path)
     pdb_df = pdb_df.query('`Atom Name` == "CB" | (`Atom Name` == "CA" & `Residue Name` == "GLY")')
@@ -178,10 +157,13 @@ def process_graph_data():
         data['edge_length2'] = edge_length2
 
     if not all:
-        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, source_array, sink_array)
+        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths(G, k, source_array, sink_array) # should have named better, top_paths is for betweeness
+                                                                                                                                                                        # top_paths2 is for correlation. this method is for 
+                                                                                                                                                                        # calculating average
 
     else:
-        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, sink_array)
+        top_paths, top_paths2, top_paths_lengths, top_paths2_lengths, most_important_nodes, most_important_nodes2 = generateTopPaths2(array_of_graphs, k, tempLinv, tempAdjDense, source_array, sink_array)# does the same thing but calculates 
+                                                                                                                                                                                                            # all instead of average
 
     # Create the top_paths_data using path_lengths_edge_weights and top_paths_2
     top_paths_data = [
@@ -243,17 +225,27 @@ def create_3d_edges(top_paths_data, pdb_df, G, pdb_universe, source_values, sink
             betweenness = G[node1Index][node2Index]["edge_length"]
             correlation = G[node1Index][node2Index]["edge_length2"]
 
-            atom1 = pdb_df.query(f'NewIndex == {node1Index}').squeeze()  # Convert single-row DataFrame to Series
-            atom2 = pdb_df.query(f'NewIndex == {node2Index}').squeeze()  # Convert single-row DataFrame to Series
+            atom1_df = pdb_df.query(f'NewIndex == {node1Index}')
+            atom2_df = pdb_df.query(f'NewIndex == {node2Index}')
 
-            resID1 = atom1['Residue ID']
-            resID2 = atom2['Residue ID']
+            # Check if either query returned no rows
+            if atom1_df.empty:
+                continue
+            else:
+                atom1 = atom1_df.squeeze()
+                resID1 = atom1['Residue ID']
+                chainID1 = atom1['Chain ID']
+                atom1_name = atom1['Atom Name'].strip() if atom1['NewIndex'] in source_and_sink else "CA"
 
-            chainID1 = atom1['Chain ID']
-            chainID2 = atom2['Chain ID']
+            if atom2_df.empty:
+                continue
+            else:
+                atom2 = atom2_df.squeeze()
+                resID2 = atom2['Residue ID']
+                chainID2 = atom2['Chain ID']
+                atom2_name = atom2['Atom Name'].strip() if atom2['NewIndex'] in source_and_sink else "CA"
 
-            atom1_name = atom1['Atom Name'].strip() if atom1['NewIndex'] in source_and_sink else "CA"
-            atom2_name = atom2['Atom Name'].strip() if atom2['NewIndex'] in source_and_sink else "CA"
+            print(resID1, resID2, chainID1, chainID2, atom1_name, atom2_name)
 
             residue1 = pdb_universe.select_atoms(f"resid {resID1} and segid {chainID1} and name {atom1_name}")
             residue2 = pdb_universe.select_atoms(f"resid {resID2} and segid {chainID2} and name {atom2_name}")

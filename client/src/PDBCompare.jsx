@@ -462,16 +462,20 @@ function PDBCompare() {
                         </div>
                     ))}
                 </div>
-                <input
-                    type="number" // Set type to number for double input
-                    value={lowerBound}
-                    onChange={(e) => setLowerBound(e.target.value)}
-                    step="0.01" // Set step to allow decimal values
-                    style={{ marginLeft: '10px', padding: '5px' }}
-                    placeholder="Delta Distance" // Optional placeholder
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    Delta Distance e.g. "delta distance is only shown if this pairwise distance is less than 5 angstroms in at least one PDB".
+                    <input
+                        type="number" // Set type to number for double input
+                        value={lowerBound}
+                        onChange={(e) => setLowerBound(e.target.value)}
+                        step="0.01" // Set step to allow decimal values
+                        style={{ marginLeft: '10px', padding: '5px' }}
+                        placeholder="Delta Distance" // Optional placeholder
+                    />
+                    <br></br>
+                </div>
                 <button onClick={handleRerender} style={{ marginLeft: '10px', padding: '5px' }}>
-                    Re-Render
+                    Render with Selected Delta Distance
                 </button>
             </div>
         )}
