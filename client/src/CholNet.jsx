@@ -1,13 +1,84 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
 export default function CholNet() {
   const [file, setFile] = useState(null);
+  const [pdbText, setPdbText] = useState("");
   const [error, setError] = useState("");
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const viewerDivRef = useRef(null);
+  const viewerRef = useRef(null);
+  const $3DmolRef = useRef(null);
+
   const modelOrder = useMemo(() => ["GAT", "GCN", "GNN"], []);
+
+  // Load 3Dmol once
+  useEffect(() => {
+    let mounted = true;
+    import("3dmol/build/3Dmol.js")
+      .then(($3Dmol) => {
+        if (!mounted) return;
+        $3DmolRef.current = $3Dmol;
+      })
+      .catch((e) => {
+        console.error(e);
+        setError("Failed to load 3D viewer (3Dmol).");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Read the PDB locally on file select (so it renders instantly)
+  const onFilePicked = (f) => {
+    setError("");
+    setResults(null);
+    setFile(f || null);
+
+    if (!f) return;
+    if (!f.name.endsWith(".pdb")) {
+      setError("Invalid file type. Please upload a .pdb file.");
+      setPdbText("");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setPdbText(String(reader.result || ""));
+    reader.onerror = () => setError("Failed to read the .pdb file.");
+    reader.readAsText(f);
+  };
+
+  // Render whenever pdbText changes
+  useEffect(() => {
+    const $3Dmol = $3DmolRef.current;
+    const el = viewerDivRef.current;
+    if (!$3Dmol || !el || !pdbText) return;
+
+    // Create viewer once, then reuse it
+    if (!viewerRef.current) {
+      viewerRef.current = $3Dmol.createViewer(el, { backgroundColor: "white" });
+    }
+    const viewer = viewerRef.current;
+
+    viewer.clear();
+    viewer.addModel(pdbText, "pdb");
+
+    // Protein / everything default: cartoon (you can tweak later)
+    viewer.setStyle({}, { cartoon: {} });
+
+    // Cholesterol as bond/stick representation: resn "CLR"
+    // (This is the key line you asked for.)
+    viewer.setStyle({ resn: "CLR" }, { stick: {} });
+
+    // Optional: hide waters or other clutter later if you want:
+    // viewer.setStyle({ resn: "HOH" }, {});
+
+    viewer.zoomTo();
+    viewer.render();
+    viewer.resize();
+  }, [pdbText]);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -51,18 +122,6 @@ export default function CholNet() {
   return (
     <div style={styles.body}>
       <h1 style={styles.h1}>CholNet Inference</h1>
-      <p>
-        Upload a PDB file to predict cholesterol binding sites using GAT, GCN, and GNN models.
-        <br /><br />
-        <strong>File requirements:</strong> The PDB must contain cholesterol molecules annotated as
-        <code> CLR </code> residues using standard <code>HETATM</code> records.
-        <br />
-        Example:
-        <br />
-        <code style={{ display: "block", marginTop: "6px" }}>
-            HETATM19758  C1  CLR A1001     113.576 122.575 109.835  1.00 67.75           C
-        </code>
-      </p>
 
       {error && (
         <div style={styles.error}>
@@ -78,22 +137,48 @@ export default function CholNet() {
             id="pdb_file"
             accept=".pdb"
             required
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e) => onFilePicked(e.target.files?.[0] || null)}
           />{" "}
           <button type="submit" style={styles.button} disabled={isLoading}>
             {isLoading ? "Analyzing..." : "Analyze"}
           </button>
         </form>
+
+        <div style={{ marginTop: 12, fontSize: 14, color: "#444" }}>
+          Viewer: protein shown as cartoon, cholesterol (<code>CLR</code>) shown as bonds/sticks.
+        </div>
       </div>
+
+      {/* 3Dmol viewport (full-bleed / breaks out of centered containers) */}
+      <div
+        style={{
+          width: "100vw",
+          marginLeft: "calc(50% - 50vw)",
+          marginRight: "calc(50% - 50vw)",
+          padding: "0 20px", // optional breathing room from screen edge
+        }}
+      >
+        <div
+          ref={viewerDivRef}
+          style={{
+            width: "100%",
+            height: 520,
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            background: "white",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        />
+      </div>
+
 
       {results && (
         <div style={styles.resultsSection}>
           <h2>Results</h2>
-
           {results.map((result, idx) => (
             <div key={idx} style={styles.fileBlock}>
               <h3>File: {result.filename}</h3>
-
               {modelOrder.map((modelName) => {
                 const data = result[modelName];
                 if (!data) {
@@ -110,38 +195,14 @@ export default function CholNet() {
                 const score = data.mean_score;
                 const isHigh = score > 0.5;
 
-                // backend might send experiment_breakdown as object/map
-                const breakdownVals = data.experiment_breakdown
-                  ? Object.values(data.experiment_breakdown).map((v) =>
-                      typeof v === "number" ? v.toFixed(4) : String(v)
-                    )
-                  : [];
-
                 return (
                   <div key={modelName} style={styles.modelCard}>
                     <div style={styles.modelName}>{modelName} Model</div>
-
                     <div style={{ ...styles.score, color: isHigh ? "green" : "#d9534f" }}>
                       Probability: {Number(score).toFixed(4)}
                     </div>
-
                     <div>
-                      Prediction:{" "}
-                      {isHigh ? (
-                        <strong>Positive (Binding)</strong>
-                      ) : (
-                        <span>Negative (Non-Binding)</span>
-                      )}
-                    </div>
-
-                    <div style={styles.details}>
-                      Based on average of ensemble models.
-                      {breakdownVals.length > 0 && (
-                        <>
-                          <br />
-                          Experiment scores: {breakdownVals.join(", ")}
-                        </>
-                      )}
+                      Prediction: {isHigh ? <strong>Positive (Binding)</strong> : <span>Negative</span>}
                     </div>
                   </div>
                 );
@@ -157,7 +218,7 @@ export default function CholNet() {
 const styles = {
   body: {
     fontFamily: "sans-serif",
-    maxWidth: 800,
+    maxWidth: "95vw",   // nearly full screen
     margin: "0 auto",
     padding: 20,
     lineHeight: 1.6,
@@ -167,30 +228,14 @@ const styles = {
     background: "#f9f9f9",
     padding: 20,
     borderRadius: 8,
-    marginBottom: 20,
+    marginBottom: 12,
     border: "1px solid #ddd",
   },
-  error: {
-    color: "red",
-    background: "#ffe6e6",
-    padding: 10,
-    borderRadius: 4,
-    marginBottom: 20,
-  },
+  error: { color: "red", background: "#ffe6e6", padding: 10, borderRadius: 4, marginBottom: 12 },
   button: { padding: "5px 15px", cursor: "pointer" },
-  resultsSection: { marginTop: 30 },
-  fileBlock: {
-    marginTop: 20,
-    borderBottom: "2px solid #eee",
-    paddingBottom: 20,
-  },
-  modelCard: {
-    border: "1px solid #ccc",
-    padding: 15,
-    marginBottom: 15,
-    borderRadius: 6,
-  },
-  modelName: { fontWeight: "bold", fontSize: "1.2em", color: "#0056b3" },
-  score: { fontSize: "1.5em", fontWeight: "bold" },
-  details: { fontSize: "0.9em", color: "#666", marginTop: 5 },
+  resultsSection: { marginTop: 20 },
+  fileBlock: { marginTop: 20, borderBottom: "2px solid #eee", paddingBottom: 20 },
+  modelCard: { border: "1px solid #ccc", padding: 15, marginBottom: 15, borderRadius: 6 },
+  modelName: { fontWeight: "bold", fontSize: "1.1em" },
+  score: { fontSize: "1.3em", fontWeight: "bold" },
 };
