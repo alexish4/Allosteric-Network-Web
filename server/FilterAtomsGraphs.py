@@ -182,94 +182,96 @@ def min_max_normalization(matrix):
     return normalized_matrix
 
 
-def create_graphs(files, dataset_name):
-    for file in files:
-        protein_pdb_df = PandasPdb().read_pdb(file)
-        protein_pdb_df.df.keys()
-        protein = protein_pdb_df.df['ATOM']
-        protein = protein[~protein['atom_name'].str.startswith('H')]  # don't use hydrogen
+def create_graphs(files, dataset_name, radius=5.0):
+    max_atoms = 150
 
-        protein_coords = protein[['x_coord', 'y_coord', 'z_coord']].values
-        protein_centroid = protein_coords.mean(axis=0)
+    # Output dirs
+    graphs_out_dir = os.path.join(dataset_name, f"{dataset_name}-graphs-5A")          # for gat/gcn
+    gnn_out_dir    = os.path.join(dataset_name, f"{dataset_name}-graph-5A")           # for gnn
+    pdb_out_dir    = os.path.join(dataset_name, f"filtered-{dataset_name}-pdbs")      # filtered pdbs
 
-        max_atoms = 150
-        output_dir = f"{dataset_name}/{dataset_name}-graphs-5A"
-        os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(graphs_out_dir, exist_ok=True)
+    os.makedirs(gnn_out_dir, exist_ok=True)
+    os.makedirs(pdb_out_dir, exist_ok=True)
 
-        files = sorted(files, key=natural_sort_key)
+    files_sorted = sorted(files, key=natural_sort_key)
 
-        ligand_df = PandasPdb().read_pdb(file)
-        ligand_df.df.keys()
-        ligand = ligand_df.df['HETATM']
-        ligand = ligand[ligand['residue_name'] == "CLR"]
-        x = list(set(zip(ligand['residue_number'], ligand['chain_id'])))
+    for file in files_sorted:
+        ppdb = PandasPdb().read_pdb(file)
 
-        # get the most inward residue
-        min_distance = float('inf')
-        closest_clr = None
+        # Protein ATOM records (no hydrogens)
+        protein = ppdb.df['ATOM']
+        protein = protein[~protein['atom_name'].str.startswith('H')]
 
-        all_ligands = []
+        # Ligand HETATM records for CLR
+        het = ppdb.df.get('HETATM', pd.DataFrame())
+        if het.empty:
+            print(f"[SKIP] No HETATM in {file}")
+            continue
 
-        for residue_number, chain_id in x:
-            clr_atoms = ligand[(ligand['residue_number'] == residue_number) & (ligand['chain_id'] == chain_id)]
+        ligand = het[het['residue_name'] == "CLR"]
+        if ligand.empty:
+            print(f"[SKIP] No CLR in {file}")
+            continue
+
+        # unique CLR identifiers: (residue_number, chain_id)
+        clr_ids = sorted(set(zip(ligand['residue_number'], ligand['chain_id'])),
+                         key=lambda t: (int(t[0]), str(t[1])))
+
+        base_stem = os.path.splitext(os.path.basename(file))[0]  # e.g. 1ABC_mode_3...
+        pdb_id = base_stem[:4].upper()
+
+        for residue_number, chain_id in clr_ids:
+            clr_atoms = ligand[
+                (ligand['residue_number'] == residue_number) &
+                (ligand['chain_id'] == chain_id)
+            ]
             if clr_atoms.empty:
                 continue
 
-            clr_coords = clr_atoms[['x_coord', 'y_coord', 'z_coord']].values
-            clr_centroid = clr_coords.mean(axis=0)
-
-            distance = np.linalg.norm(protein_centroid - clr_centroid)
-
-            if distance < min_distance:
-                min_distance = distance
-                closest_clr = (residue_number, chain_id)
-
+            # Filter protein around THIS CLR
             grid_list_ = grid_list(clr_atoms)
+            filtered_atoms = filtering_proteins(protein, grid_list_, radius=radius)
 
-            all_ligands.append(filtering_proteins(protein, grid_list_))
+            if filtered_atoms.empty:
+                print(f"[SKIP] {file} CLR {residue_number}{chain_id}: no atoms within {radius}Å")
+                continue
 
-        ligand_ = ligand[(ligand['residue_number'] == closest_clr[0]) & (ligand['chain_id'] == closest_clr[1])]
-        grid_list_ = grid_list(ligand_)
-
-        filtered_atoms = filtering_proteins(protein, grid_list_)
-
-        if not filtered_atoms.empty:
-            # Save to pdb
+            # --- Save filtered PDB (per-CLR) ---
             filtered_pdb = PandasPdb()
             filtered_pdb.df['ATOM'] = filtered_atoms
-            base_name = os.path.basename(file)
 
-            filtered_pdb_path = f"{dataset_name}/filtered-{dataset_name}-pdbs/{base_name[:4]}-filtered.pdb"
-            os.makedirs(os.path.dirname(filtered_pdb_path), exist_ok=True)
+            clr_tag = f"CLR{residue_number}{chain_id}"
+            filtered_pdb_path = os.path.join(pdb_out_dir, f"{pdb_id}-{base_stem}_{clr_tag}-filtered.pdb")
             filtered_pdb.to_pdb(path=filtered_pdb_path, records=None, gz=False, append_newline=True)
 
-        pdb_df = pdb_to_dataframe(filtered_pdb_path)
-        encoded_matrix = one_hot_encoding(pdb_df)
-        inverse_distance = compute_inverse_pairwise_distances(
-            pdb_df)  # don't need to normalize since gat notebook already does that
+            # --- Build matrices from filtered pdb ---
+            pdb_df = pdb_to_dataframe(filtered_pdb_path)
+            encoded_matrix = one_hot_encoding(pdb_df)
+            inverse_distance = compute_inverse_pairwise_distances(pdb_df)
 
-        combined_matrix = inverse_distance @ encoded_matrix  # for gnn
-        combined_matrix = min_max_normalization(combined_matrix)
+            num_atoms = inverse_distance.shape[0]
+            if num_atoms > max_atoms:
+                print(f"[SKIP] {file} {clr_tag}: {num_atoms} atoms > limit {max_atoms}")
+                continue
 
-        num_atoms = inverse_distance.shape[0]
+            combined_matrix = inverse_distance @ encoded_matrix
+            combined_matrix = min_max_normalization(combined_matrix)
+            combined_matrix = np.pad(
+                combined_matrix,
+                ((0, max_atoms - num_atoms), (0, 0)),
+                mode='constant'
+            )
 
-        if num_atoms > max_atoms:
-            print(f"{file} has {num_atoms} atoms, exceeding the limit of {max_atoms}")
-            # raise Exception("Too many atoms!")
-            continue
+            # --- Save GAT/GCN dict (per-CLR) ---
+            graphs_out_path = os.path.join(graphs_out_dir, f"{base_stem}_{clr_tag}_graphs.npy")
+            np.save(graphs_out_path, {
+                'inverse_distance': inverse_distance,
+                'encoded_matrix': encoded_matrix
+            })
 
-        combined_matrix = np.pad(combined_matrix, ((0, max_atoms - num_atoms), (0, 0)),
-                                 mode='constant')  # padding for gnn
+            # --- Save GNN combined matrix (per-CLR) ---
+            gnn_out_path = os.path.join(gnn_out_dir, f"{base_stem}_{clr_tag}_combined_matrix.npy")
+            np.save(gnn_out_path, combined_matrix)
 
-        # Save to file
-        base_name = os.path.splitext(os.path.basename(file))[0]
-        output_path = os.path.join(output_dir, f"{base_name}_graphs.npy")
-
-        np.save(output_path, {  # for gat and gcn
-            'inverse_distance': inverse_distance,
-            'encoded_matrix': encoded_matrix
-        })
-
-        output_file = f"{dataset_name}/{dataset_name}-graph-5A/{base_name}_combined_matrix.npy"  # for gnn
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        np.save(output_file, combined_matrix)
+            print(f"[OK] {pdb_id} {base_stem} {clr_tag} -> saved PDB + npy")

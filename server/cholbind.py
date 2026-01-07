@@ -14,6 +14,23 @@ from collections import Counter
 # Importing your custom preprocessing module
 from FilterAtomsGraphs import create_graphs
 
+import os, re
+
+_CLR_TAG_RE = re.compile(r"_CLR(\d+)([A-Za-z0-9])_")
+
+def parse_clr_from_path(path: str):
+    """
+    Extract (residue_number, chain_id) from filenames like:
+    something_CLR1001A_graphs.npy
+    something_CLR1001A_combined_matrix.npy
+    """
+    name = os.path.basename(path)
+    m = _CLR_TAG_RE.search(name)
+    if not m:
+        return None
+    return int(m.group(1)), m.group(2)
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def robust_rmtree(path, retries=5, delay=0.2):
@@ -216,46 +233,81 @@ class CholNetBackend:
         os.makedirs(session_output_dir, exist_ok=True)
 
         try:
+            # This will generate multiple outputs per CLR in session_output_dir
             create_graphs([pdb_file_path], session_output_dir)
 
-            npy_files = []
-            for root, dirs, files in os.walk(session_output_dir):
-                for file in files:
-                    if file.endswith(".npy"):
-                        npy_files.append(os.path.join(root, file))
+            graphs_files = []  # for GAT/GCN
+            gnn_files = []     # for GNN
 
-            if not npy_files:
-                return {"status": "error",
-                        "message": "Preprocessing failed. No graph files generated. Ensure CLR ligand is present."}
+            for root, _, files in os.walk(session_output_dir):
+                for fn in files:
+                    if not fn.endswith(".npy"):
+                        continue
+                    full = os.path.join(root, fn)
+                    if fn.endswith("_graphs.npy"):
+                        graphs_files.append(full)
+                    elif fn.endswith("_combined_matrix.npy"):
+                        gnn_files.append(full)
 
-            merged_results = {
-                "filename": os.path.basename(pdb_file_path),
-                "GAT": None,
-                "GCN": None,
-                "GNN": None
-            }
+            if not graphs_files and not gnn_files:
+                return {
+                    "status": "error",
+                    "message": "Preprocessing failed. No graph files generated. Ensure CLR ligand is present."
+                }
 
-            for file_path in npy_files:
-                gat = self._evaluate_gat(file_path)
+            # Group results by CLR id
+            # key: (resnum, chain)
+            grouped = {}
+
+            def ensure_bucket(clr_key):
+                if clr_key not in grouped:
+                    grouped[clr_key] = {
+                        "filename": os.path.basename(pdb_file_path),
+                        "clr_residue_number": clr_key[0],
+                        "clr_chain_id": clr_key[1],
+                        "GAT": None,
+                        "GCN": None,
+                        "GNN": None,
+                    }
+
+            # Run GAT/GCN on each *_graphs.npy (per CLR)
+            for fp in graphs_files:
+                clr_key = parse_clr_from_path(fp)
+                if not clr_key:
+                    # If somehow missing tag, skip (or handle separately)
+                    continue
+                ensure_bucket(clr_key)
+
+                gat = self._evaluate_gat(fp)
                 if gat:
-                    merged_results["GAT"] = gat
+                    grouped[clr_key]["GAT"] = gat
 
-                gcn = self._evaluate_gcn(file_path)
+                gcn = self._evaluate_gcn(fp)
                 if gcn:
-                    merged_results["GCN"] = gcn
+                    grouped[clr_key]["GCN"] = gcn
 
-                gnn = self._evaluate_gnn(file_path)
+            # Run GNN on each *_combined_matrix.npy (per CLR)
+            for fp in gnn_files:
+                clr_key = parse_clr_from_path(fp)
+                if not clr_key:
+                    continue
+                ensure_bucket(clr_key)
+
+                gnn = self._evaluate_gnn(fp)
                 if gnn:
-                    merged_results["GNN"] = gnn
+                    grouped[clr_key]["GNN"] = gnn
 
-            return {"status": "success", "results": [merged_results]}
+            # Sort output by residue_number then chain_id
+            results = [grouped[k] for k in sorted(grouped.keys(), key=lambda x: (x[0], x[1]))]
+
+            return {"status": "success", "results": results}
 
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
         finally:
-            # Cleanup using the robust method to handle Windows locks
             robust_rmtree(session_output_dir)
+
 
     def _evaluate_gat(self, file_path):
         try:

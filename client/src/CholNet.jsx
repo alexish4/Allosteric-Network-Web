@@ -210,18 +210,22 @@ export default function CholNet() {
 
       {results && (
         <div style={styles.resultsSection}>
-          <h2>Results</h2>
-          {results.map((result, idx) => (
+          <h2>Results (per CLR ligand)</h2>
+
+          {results.map((r, idx) => (
             <div key={idx} style={styles.fileBlock}>
-              <h3>File: {result.filename}</h3>
+              <h3>
+                File: {r.filename} — CLR {r.clr_chain_id}{r.clr_residue_number}
+              </h3>
+
               {modelOrder.map((modelName) => {
-                const data = result[modelName];
+                const data = r[modelName];
                 if (!data) {
                   return (
                     <div key={modelName} style={styles.modelCard}>
                       <div style={styles.modelName}>{modelName} Model</div>
                       <div style={{ color: "gray" }}>
-                        Result unavailable (processing failed or file skipped)
+                        Result unavailable (processing failed or skipped)
                       </div>
                     </div>
                   );
@@ -237,7 +241,8 @@ export default function CholNet() {
                       Probability: {Number(score).toFixed(4)}
                     </div>
                     <div>
-                      Prediction: {isHigh ? <strong>Positive (Binding)</strong> : <span>Negative</span>}
+                      Prediction:{" "}
+                      {isHigh ? <strong>Positive (Binding)</strong> : <span>Negative</span>}
                     </div>
                   </div>
                 );
@@ -246,6 +251,7 @@ export default function CholNet() {
           ))}
         </div>
       )}
+
     </div>
   );
 }
