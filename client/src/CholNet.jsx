@@ -70,10 +70,45 @@ export default function CholNet() {
 
     // Cholesterol as bond/stick representation: resn "CLR"
     // (This is the key line you asked for.)
-    viewer.setStyle({ resn: "CLR" }, { stick: {} });
+    viewer.setStyle(
+      { resn: "CLR" },
+      { stick: { color: "gold" } }   // or "orange", "cyan", "#FFD700"
+    );
 
-    // Optional: hide waters or other clutter later if you want:
-    // viewer.setStyle({ resn: "HOH" }, {});
+    viewer.setHoverable(
+      { resn: "CLR" },          // only cholesterol atoms get hover
+      true,
+      function (atom) {
+        if (atom.label) return;
+
+        const chain = atom.chain || "";
+        const resi = atom.resi != null ? atom.resi : "";
+        const resn = atom.resn || "";
+        const aname = atom.atom || atom.elem || "";
+
+        atom.label = viewer.addLabel(
+          `${resn} ${chain}${resi} • ${aname}`,
+          {
+            position: { x: atom.x, y: atom.y, z: atom.z },
+            backgroundColor: "white",
+            borderColor: "#333",
+            borderThickness: 1,
+            fontColor: "#111",
+            fontSize: 12,
+            inFront: true,
+          }
+        );
+
+        viewer.render();
+      },
+      function (atom) {
+        if (atom.label) {
+          viewer.removeLabel(atom.label);
+          delete atom.label;
+          viewer.render();
+        }
+      }
+    );
 
     viewer.zoomTo();
     viewer.render();
@@ -121,7 +156,7 @@ export default function CholNet() {
 
   return (
     <div style={styles.body}>
-      <h1 style={styles.h1}>CholNet Inference</h1>
+      <h1 style={styles.h1}>CholNet Interface</h1>
 
       {error && (
         <div style={styles.error}>
