@@ -15,14 +15,16 @@ from scipy.signal import argrelextrema
 from MDAnalysis.analysis.distances import distance_array
 
 def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
+    u = mda.Universe(protein_pdb, trajectory)
+    ending_frame_number = len(u.trajectory) - 1
+
     LMI_matrix = calcMD_LMI(protein_pdb, trajectory,
-                         startingFrame=0, endingFrame=100,
+                         startingFrame=0, endingFrame=ending_frame_number,
                          normalized=True, alignTrajectory=True,
                          atomSelection='protein and (name CB or (name CA and resname GLY))',
                          saveMatrix=False)
     print(LMI_matrix[:10][:10])
-    # create contact matrix
-    u = mda.Universe(protein_pdb, trajectory)
+
     # Select all atoms
     selection = u.select_atoms("protein and (name CB or (name CA and resname GLY))")
 
@@ -36,7 +38,7 @@ def convert_trajectory_to_sparse_matrix(trajectory, protein_pdb):
     contact_count = np.zeros((num_atoms, num_atoms), dtype=int)
 
     # Compute distances for frames 0 to 100
-    total_frames = 101  # Frames 0 to 100
+    total_frames = len(u.trajectory) 
     for ts in u.trajectory[:total_frames]:
         dist_matrix = distance_array(selection.positions, selection.positions)
         contact_count += (dist_matrix <= distance_threshold).astype(int)

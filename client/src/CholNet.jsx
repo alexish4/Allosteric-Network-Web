@@ -13,7 +13,7 @@ export default function CholNet() {
   const $3DmolRef = useRef(null);
 
   const modelOrder = useMemo(() => ["GAT", "GCN", "GNN"], []);
-  const EXAMPLE_PDB_URL = "/static/examples/cholnet_example.pdb";
+  const EXAMPLE_PDB_URL = "7D93.pdb";
 
   const clrColorMap = useMemo(() => {
     if (!results || !Array.isArray(results)) return {};
