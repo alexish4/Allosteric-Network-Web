@@ -12,8 +12,21 @@ export default function CholNet() {
   const viewerRef = useRef(null);
   const $3DmolRef = useRef(null);
 
-  const modelOrder = useMemo(() => ["GAT", "GCN", "GNN"], []);
+  const modelOrder = useMemo(() => ["GNN", "GAT", "GCN"], []);
   const EXAMPLE_PDB_URL = "7D93.pdb";
+
+  const sortedResults = useMemo(() => {
+    if (!Array.isArray(results)) return [];
+
+    const getGnnScore = (r) => {
+      const v = Number(r?.GNN?.mean_score);
+      // Treat missing/NaN as very small so they go to bottom
+      return Number.isFinite(v) ? v : -Infinity;
+    };
+
+    return [...results].sort((a, b) => getGnnScore(b) - getGnnScore(a));
+  }, [results]);
+
 
   const clrColorMap = useMemo(() => {
     if (!results || !Array.isArray(results)) return {};
@@ -306,7 +319,7 @@ export default function CholNet() {
               </thead>
 
               <tbody>
-                {results.map((r, idx) => {
+                {sortedResults.map((r, idx) => {
                   const clrKey = `${r.clr_chain_id}${r.clr_residue_number}`;
                   const clrColor = clrColorMap[clrKey] || "gold";
 
