@@ -182,6 +182,18 @@ export default function CholNet() {
       }
     );
 
+    // --- Protein atoms within 5 Å of any CLR: transparent VDW overlay ---
+    viewer.addStyle(
+      {
+        protein: true,
+        within: { distance: 5.0, sel: { resn: "CLR" } },
+      },
+      {
+        vdw: { opacity: 0.25 },
+      }
+    );
+
+
     viewer.zoomTo();
     viewer.render();
     viewer.resize();
@@ -229,7 +241,7 @@ export default function CholNet() {
 
   return (
     <div style={styles.body}>
-      <h1 style={styles.h1}>CholNet Interface</h1>
+      <h1 style={styles.h1}>CholBindNet Interface</h1>
 
       {error && (
         <div style={styles.error}>
@@ -279,15 +291,8 @@ export default function CholNet() {
         </div>
       </div>
 
-      {/* 3Dmol viewport (full-bleed / breaks out of centered containers) */}
-      <div
-        style={{
-          width: "100vw",
-          marginLeft: "calc(50% - 50vw)",
-          marginRight: "calc(50% - 50vw)",
-          padding: "0 20px", // optional breathing room from screen edge
-        }}
-      >
+      {/* 3Dmol viewport (same width as other components) */}
+      <div style={{ marginTop: 12 }}>
         <div
           ref={viewerDivRef}
           style={{
@@ -301,6 +306,7 @@ export default function CholNet() {
           }}
         />
       </div>
+
 
 
       {results && (

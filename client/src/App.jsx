@@ -16,7 +16,7 @@ function App() {
         <Route path="/allosteric" element={<Allosteric />} />
         <Route path="/pdbpaircompare" element={<PDBCompare />} />
         <Route path="/newallosteric" element={<NewAllosteric />} />
-        <Route path="/cholnet" element={<CholNet />} />
+        <Route path="/cholbindnet" element={<CholNet />} />
       </Routes>
       <NavBar />
     </Router>
@@ -31,7 +31,7 @@ function NavBar() {
       {location.pathname !== "/" && <Link to="/">Go Back to Home Page |</Link>}
       {location.pathname !== "/newallosteric" && <Link to="/newallosteric"> Allosteric Page</Link>}
       {location.pathname !== "/pdbpaircompare" && <Link to="/pdbpaircompare"> | PDB Compare Page</Link>} 
-      {location.pathname !== "/cholnet" && <Link to="/cholnet"> | CholNet Page</Link>}
+      {location.pathname !== "/cholbindnet" && <Link to="/cholbindnet"> | CholBindNet Page</Link>}
     </nav>
   );
 }
