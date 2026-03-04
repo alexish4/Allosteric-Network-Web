@@ -4,7 +4,7 @@ import './App.css';
 
 const pages = [
   {
-    title: "Allosteric",
+    title: "Current Flow Allostery",
     path: "/newallosteric",
     img: "AllostericThumbnail.png"
   },
@@ -23,7 +23,7 @@ const pages = [
 function Home() {
   return (
     <div className="home-container">
-      <h1>Home Page</h1>
+      <h1>Comp Bio Tools</h1>
       <h2>Select a Page</h2>
 
       <div className="card-grid">

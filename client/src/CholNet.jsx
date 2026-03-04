@@ -124,6 +124,14 @@ export default function CholNet() {
     viewer.clear();
     viewer.addModel(pdbText, "pdb");
 
+    const nChol = viewer.selectedAtoms({ resn: ["CLR", "CHL"] }).length;
+    const nNear = viewer.selectedAtoms({
+      and: [{ not: { resn: ["CLR", "CHL"] } }, { within: { distance: 5.0, sel: { resn: ["CLR", "CHL"] } } }],
+    }).length;
+
+    console.log("chol atoms:", nChol, "near atoms:", nNear);
+
+
     // Protein default
     viewer.setStyle({}, { cartoon: {} });
 
@@ -182,17 +190,27 @@ export default function CholNet() {
       }
     );
 
-    // --- Protein atoms within 5 Å of any CLR: transparent VDW overlay ---
-    viewer.addStyle(
-      {
-        protein: true,
-        within: { distance: 5.0, sel: { resn: "CLR" } },
-      },
-      {
-        vdw: { opacity: 0.25 },
-      }
-    );
+    // --- Protein atoms within 5 Å of any cholesterol ligand: VDW overlay ---
+    const cholSel = { resn: ["CLR", "CHL"] }; // add more if you see them in your files
 
+    const nearProteinSel = {
+      and: [
+        { protein: true }, // don't include the ligand itself
+        { within: { distance: 5.0, sel: cholSel } },
+        // Prefer excluding ligand instead of relying on `protein:true`
+        // because `protein:true` can be false for some PDBs depending on parsing.
+      ],
+    };
+
+    // Prefer addStyle so you don't overwrite cartoon
+    if (typeof viewer.addStyle === "function") {
+      viewer.addStyle(nearProteinSel, { sphere: { opacity: 0.25 } });
+      console.log("Using addStyle for nearby protein atoms.");
+    } else {
+      // Fallback: setStyle will overwrite for those atoms, so include cartoon too
+      viewer.setStyle(nearProteinSel, { cartoon: { color: "spectrum" }, vdw: { opacity: 0.25 } });
+      console.log("Using setStyle for nearby protein atoms (may overwrite cartoon).");
+    }
 
     viewer.zoomTo();
     viewer.render();
