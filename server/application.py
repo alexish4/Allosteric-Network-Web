@@ -11,7 +11,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from collections import Counter
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-import EnergyCode
 import Graph2D
 import SubtractedCorrelationMatrix
 import SaltBridgePlot
@@ -165,6 +164,72 @@ def cholnet_predict():
 
     except Exception as e:
         app.logger.exception("CholNet predict failed")
+        return jsonify({"status": "error", "message": f"Server Error: {str(e)}"}), 500
+
+    finally:
+        robust_rmtree(session_dir)
+
+from flask import request, jsonify
+import os, uuid
+
+@app.route('/api/cholnet/batch', methods=['POST'])
+def cholnet_predict_batch():
+    # Must match frontend: formData.append("pdb_files", f)
+    files = request.files.getlist('pdb_files')
+    if not files or len(files) == 0:
+        return jsonify({"status": "error", "message": "No files part: pdb_files"}), 400
+
+    session_id = str(uuid.uuid4())
+    session_dir = os.path.join(UPLOAD_FOLDER, session_id)
+    os.makedirs(session_dir, exist_ok=True)
+
+    items = []
+    try:
+        for f in files:
+            # Some browsers include directory in filename when using webkitdirectory
+            # e.g. "subdir/foo.pdb" -> keep only basename
+            original_name = f.filename or ""
+            basename = os.path.basename(original_name)
+
+            if basename == "":
+                items.append({"filename": original_name, "results": [], "error": "Empty filename"})
+                continue
+
+            if not basename.lower().endswith(".pdb"):
+                items.append({"filename": basename, "results": [], "error": "Invalid file type (not .pdb)"})
+                continue
+
+            filepath = os.path.join(session_dir, basename)
+
+            try:
+                f.save(filepath)
+
+                response = cholnet_backend.predict(filepath)
+                if response.get("status") == "success":
+                    items.append({
+                        "filename": basename,
+                        "results": response.get("results", [])
+                    })
+                else:
+                    items.append({
+                        "filename": basename,
+                        "results": [],
+                        "error": response.get("message", "Processing error.")
+                    })
+
+            except Exception as e:
+                app.logger.exception(f"CholNet batch predict failed for {basename}")
+                items.append({
+                    "filename": basename,
+                    "results": [],
+                    "error": f"Server Error: {str(e)}"
+                })
+
+        # If you want to treat “all failed” as error, you can add a check here.
+        return jsonify({"status": "success", "items": items}), 200
+
+    except Exception as e:
+        app.logger.exception("CholNet batch predict failed (outer)")
         return jsonify({"status": "error", "message": f"Server Error: {str(e)}"}), 500
 
     finally:

@@ -19,14 +19,22 @@ export default function CholNet() {
   const modelOrder = useMemo(() => ["GNN", "GAT", "GCN"], []);
   const EXAMPLE_PDB_URL = "7D93.pdb";
 
+  const getGnnScore = (r) => {
+    const v = Number(r?.GNN?.mean_score);
+    return Number.isFinite(v) ? v : -Infinity;
+  };
+
   const sortedResults = useMemo(() => {
     if (!Array.isArray(results)) return [];
-    const getGnnScore = (r) => {
-      const v = Number(r?.GNN?.mean_score);
-      return Number.isFinite(v) ? v : -Infinity;
-    };
     return [...results].sort((a, b) => getGnnScore(b) - getGnnScore(a));
   }, [results]);
+
+  const rankedResults = useMemo(() => {
+    return sortedResults.map((r, idx) => ({
+      ...r,
+      rank: idx + 1,
+    }));
+  }, [sortedResults]);
 
   const clrColorMap = useMemo(() => {
     if (!Array.isArray(results)) return {};
@@ -192,17 +200,26 @@ export default function CholNet() {
     if (!Array.isArray(batchResults)) return;
 
     const rows = [];
+
     for (const item of batchResults) {
       const fname = item.filename || "";
       const resultsArr = Array.isArray(item.results) ? item.results : [];
 
-      for (const r of resultsArr) {
+      const ranked = [...resultsArr]
+        .sort((a, b) => getGnnScore(b) - getGnnScore(a))
+        .map((r, idx) => ({
+          ...r,
+          rank: idx + 1,
+        }));
+
+      for (const r of ranked) {
         const chain = r?.clr_chain_id ?? "";
         const resi = r?.clr_residue_number ?? "";
         const clr_id = `CLR ${chain}${resi}`;
 
         rows.push({
           filename: fname,
+          rank: r.rank,
           clr_id,
           GNN: r?.GNN?.mean_score ?? "",
           GAT: r?.GAT?.mean_score ?? "",
@@ -211,7 +228,7 @@ export default function CholNet() {
       }
     }
 
-    const headers = ["filename", "clr_id", "GNN", "GAT", "GCN"];
+    const headers = ["filename", "rank", "clr_id", "GNN", "GAT", "GCN"];
     const esc = (v) => {
       const s = String(v ?? "");
       return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
@@ -424,6 +441,7 @@ export default function CholNet() {
             <table style={styles.table}>
               <thead>
                 <tr>
+                  <th style={styles.th}>Rank</th>
                   <th style={styles.th}>CLR ID</th>
                   {modelOrder.map((m) => (
                     <th key={m} style={styles.th}>
@@ -434,12 +452,16 @@ export default function CholNet() {
               </thead>
 
               <tbody>
-                {sortedResults.map((r, idx) => {
+                {rankedResults.map((r, idx) => {
                   const clrKey = `${r.clr_chain_id}${r.clr_residue_number}`;
                   const clrColor = clrColorMap[clrKey] || "gold";
 
                   return (
                     <tr key={idx}>
+                      <td style={styles.td}>
+                        <strong>{r.rank}</strong>
+                      </td>
+
                       <td style={styles.td}>
                         <span
                           title={`Color for CLR ${clrKey}`}
@@ -488,7 +510,7 @@ export default function CholNet() {
         </div>
       )}
 
-      {/* ---------- Batch results (not nested under single results) ---------- */}
+      {/* ---------- Batch results ---------- */}
       {Array.isArray(batchResults) && (
         <div style={styles.resultsSection}>
           <h2>Batch Results</h2>
@@ -497,7 +519,7 @@ export default function CholNet() {
           </button>
 
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
-            CSV contains one row per CLR per PDB file.
+            CSV contains one row per CLR per PDB file, including rank based on GNN score.
           </div>
         </div>
       )}
