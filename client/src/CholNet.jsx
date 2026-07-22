@@ -17,7 +17,10 @@ export default function CholNet() {
   const $3DmolRef = useRef(null);
 
   const modelOrder = useMemo(() => ["GNN", "GAT", "GCN"], []);
+  
   const EXAMPLE_PDB_URL = "7D93.pdb";
+  const ABSTRACT_FIGURE_URL = "CholBindAbstractFigure.png";
+  const PUBLICATION_URL = "https://doi.org/10.1038/s42004-026-02064-w";
 
   const getGnnScore = (r) => {
     const v = Number(r?.GNN?.mean_score);
@@ -307,6 +310,36 @@ export default function CholNet() {
   return (
     <div style={styles.body}>
       <h1 style={styles.h1}>CholBindNet Interface</h1>
+
+      <div style={styles.publicationSection}>
+        <a
+          href={PUBLICATION_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={styles.abstractFigureLink}
+          title="View the CholBindNet publication"
+        >
+          <img
+            src={ABSTRACT_FIGURE_URL}
+            alt="CholBindNet graphical abstract"
+            style={styles.abstractFigure}
+          />
+        </a>
+
+        <div style={styles.publicationText}>
+          <strong>CholBindNet</strong> is an interpretable neural-network framework
+          for classifying cholesterol-binding sites in transmembrane proteins.
+        </div>
+
+        <a
+          href={PUBLICATION_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={styles.publicationLink}
+        >
+          Read the CholBindNet publication
+        </a>
+      </div>
 
       {error && (
         <div style={styles.error}>
@@ -626,4 +659,46 @@ const styles = {
     color: "#999",
     whiteSpace: "nowrap",
   },
+
+  publicationSection: {
+  background: "white",
+  padding: 20,
+  marginBottom: 18,
+  border: "1px solid #ddd",
+  borderRadius: 10,
+  textAlign: "center",
+},
+
+abstractFigureLink: {
+  display: "block",
+  width: "100%",
+  textDecoration: "none",
+},
+
+abstractFigure: {
+  display: "block",
+  width: "100%",
+  maxWidth: 1000,
+  maxHeight: 500,
+  objectFit: "contain",
+  margin: "0 auto",
+  borderRadius: 8,
+},
+
+publicationText: {
+  maxWidth: 900,
+  margin: "14px auto 8px",
+  color: "#333",
+  fontSize: 17,
+  lineHeight: 1.6,
+},
+
+publicationLink: {
+  display: "inline-block",
+  marginTop: 6,
+  color: "#065fd4",
+  fontSize: 17,
+  fontWeight: 700,
+  textDecoration: "underline",
+},
 };
