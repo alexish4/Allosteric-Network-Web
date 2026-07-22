@@ -10,6 +10,7 @@ export default function CholNet() {
 
   const [files, setFiles] = useState([]); // batch PDBs
   const [batchResults, setBatchResults] = useState(null);
+  const [selectedClr, setSelectedClr] = useState(null);
   const isBatchMode = files.length > 0;
 
   const viewerDivRef = useRef(null);
@@ -75,6 +76,20 @@ export default function CholNet() {
     return map;
   }, [results]);
 
+  const chooseClr = (r) => {
+    const chain = String(r?.clr_chain_id ?? "");
+    const resi = Number(r?.clr_residue_number);
+
+    if (!Number.isFinite(resi)) return;
+
+    const key = `${chain}${resi}`;
+
+    // Clicking the selected CLR again clears the selection.
+    setSelectedClr((current) =>
+      current?.key === key ? null : { chain, resi, key }
+    );
+  };
+
   // Load 3Dmol once
   useEffect(() => {
     let mounted = true;
@@ -97,6 +112,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setSelectedClr(null);
     setFiles([]); // leave batch mode
 
     setFile(f || null);
@@ -132,7 +148,10 @@ export default function CholNet() {
     viewer.addModel(pdbText, "pdb");
 
     viewer.setStyle({}, { cartoon: {} });
-    viewer.setStyle({ resn: "CLR" }, { stick: { color: "gold" } });
+    viewer.setStyle(
+      { resn: "CLR" },
+      { stick: { color: "gold", radius: 0.2 } }
+    );
 
     if (Array.isArray(results) && results.length > 0) {
       for (const r of results) {
@@ -146,9 +165,29 @@ export default function CholNet() {
 
         viewer.setStyle(
           { resn: "CLR", chain: String(chain), resi: Number(resi) },
-          { stick: { color } }
+          { stick: { color, radius: 0.22 } }
         );
       }
+    }
+
+    // When a CLR is selected from the table, dim every CLR and strongly
+    // highlight only the selected chain/residue combination.
+    if (selectedClr) {
+      viewer.setStyle(
+        { resn: "CLR" },
+        { stick: { color: "#c7c7c7", radius: 0.14 } }
+      );
+
+      const selectedClrSel = {
+        resn: "CLR",
+        chain: selectedClr.chain,
+        resi: selectedClr.resi,
+      };
+
+      viewer.setStyle(selectedClrSel, {
+        stick: { color: "#ff00ff", radius: 0.38 },
+        sphere: { color: "#ff00ff", scale: 0.28 },
+      });
     }
 
     viewer.setHoverable(
@@ -194,10 +233,19 @@ export default function CholNet() {
       });
     }
 
-    viewer.zoomTo();
+    if (selectedClr) {
+      viewer.zoomTo({
+        resn: "CLR",
+        chain: selectedClr.chain,
+        resi: selectedClr.resi,
+      });
+    } else {
+      viewer.zoomTo();
+    }
+
     viewer.render();
     viewer.resize();
-  }, [pdbText, results, clrColorMap]);
+  }, [pdbText, results, clrColorMap, selectedClr]);
 
   const downloadBatchCsv = () => {
     if (!Array.isArray(batchResults)) return;
@@ -255,6 +303,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setSelectedClr(null);
 
     if (!file || !file.name.toLowerCase().endsWith(".pdb")) {
       setError("Please choose a .pdb file.");
@@ -283,6 +332,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setSelectedClr(null);
 
     if (!files || files.length === 0) {
       setError("Please select a folder (batch) with .pdb files.");
@@ -401,6 +451,7 @@ export default function CholNet() {
                 setError("");
                 setResults(null);
                 setBatchResults(null);
+                setSelectedClr(null);
 
                 const picked = Array.from(e.target.files || []).filter((f) =>
                   f.name.toLowerCase().endsWith(".pdb")
@@ -431,6 +482,7 @@ export default function CholNet() {
                   onClick={() => {
                     setFiles([]);
                     setBatchResults(null);
+                    setSelectedClr(null);
                   }}
                 >
                   Clear
@@ -468,7 +520,24 @@ export default function CholNet() {
       {/* ---------- Single results ---------- */}
       {Array.isArray(results) && (
         <div style={styles.resultsSection}>
-          <h2>Results (CLR ligands)</h2>
+          <div style={styles.resultsHeader}>
+            <h2 style={{ margin: 0 }}>Results (CLR ligands)</h2>
+
+            {selectedClr && (
+              <div style={styles.selectedClrControls}>
+                <span>
+                  Highlighting <strong>CLR {selectedClr.key}</strong>
+                </span>
+                <button
+                  type="button"
+                  style={{ ...styles.button, padding: "6px 10px" }}
+                  onClick={() => setSelectedClr(null)}
+                >
+                  Show all CLRs
+                </button>
+              </div>
+            )}
+          </div>
 
           <div style={{ overflowX: "auto" }}>
             <table style={styles.table}>
@@ -489,8 +558,29 @@ export default function CholNet() {
                   const clrKey = `${r.clr_chain_id}${r.clr_residue_number}`;
                   const clrColor = clrColorMap[clrKey] || "gold";
 
+                  const isSelected = selectedClr?.key === clrKey;
+
                   return (
-                    <tr key={idx}>
+                    <tr
+                      key={idx}
+                      onClick={() => chooseClr(r)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          chooseClr(r);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      title={`Highlight CLR ${clrKey} in the 3D viewer`}
+                      style={{
+                        cursor: "pointer",
+                        background: isSelected ? "#fff1ff" : "white",
+                        outline: isSelected ? "2px solid #ff00ff" : "none",
+                        outlineOffset: -2,
+                      }}
+                    >
                       <td style={styles.td}>
                         <strong>{r.rank}</strong>
                       </td>
@@ -509,7 +599,17 @@ export default function CholNet() {
                             verticalAlign: "middle",
                           }}
                         />
-                        <strong>CLR {clrKey}</strong>
+                        <strong
+                          style={{
+                            color: isSelected ? "#b000b0" : "#111",
+                            textDecoration: isSelected ? "underline" : "none",
+                          }}
+                        >
+                          CLR {clrKey}
+                        </strong>
+                        {isSelected && (
+                          <span style={styles.selectedBadge}>Selected</span>
+                        )}
                       </td>
 
                       {modelOrder.map((modelName) => {
@@ -538,7 +638,8 @@ export default function CholNet() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
-            Tip: each CLR row color matches the cholesterol color in the 3D viewer.
+            Tip: click any evaluated CLR row to highlight and zoom to that exact CLR
+            chain/residue ID. Click it again, or choose “Show all CLRs,” to clear the selection.
           </div>
         </div>
       )}
@@ -631,6 +732,31 @@ const styles = {
   },
   viewerNote: { marginTop: 12, fontSize: 16, color: "#444" },
   resultsSection: { marginTop: 20 },
+  resultsHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  selectedClrControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    fontSize: 14,
+  },
+  selectedBadge: {
+    display: "inline-block",
+    marginLeft: 8,
+    padding: "2px 7px",
+    borderRadius: 999,
+    background: "#ff00ff",
+    color: "white",
+    fontSize: 11,
+    fontWeight: 700,
+    verticalAlign: "middle",
+  },
   table: {
     width: "100%",
     borderCollapse: "collapse",
