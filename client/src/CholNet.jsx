@@ -18,6 +18,54 @@ export default function CholNet() {
   const $3DmolRef = useRef(null);
 
   const modelOrder = useMemo(() => ["GNN", "GAT", "GCN"], []);
+
+  // Average spy percentiles across Experiments 1–5 for each model.
+  const SCORE_THRESHOLDS = useMemo(
+    () => ({
+      GNN: {
+        p25: 0.6876584,
+        p50: 0.7778270,
+        p75: 0.8349516,
+      },
+      GAT: {
+        p25: 0.6400374,
+        p50: 0.8283712,
+        p75: 0.9087056,
+      },
+      GCN: {
+        p25: 0.6724110,
+        p50: 0.8102502,
+        p75: 0.8893382,
+      },
+    }),
+    []
+  );
+
+  const getScoreLabel = (modelName, value) => {
+    const score = Number(value);
+    const thresholds = SCORE_THRESHOLDS[modelName];
+
+    if (!Number.isFinite(score) || !thresholds) return "Unavailable";
+    if (score < thresholds.p25) return "Negative";
+    if (score < thresholds.p50) return "PseudoNegative";
+    if (score < thresholds.p75) return "PseudoPositive";
+    return "Positive";
+  };
+
+  const getLabelColor = (label) => {
+    switch (label) {
+      case "Negative":
+        return "#d9534f";
+      case "PseudoNegative":
+        return "#d97706";
+      case "PseudoPositive":
+        return "#2563eb";
+      case "Positive":
+        return "#15803d";
+      default:
+        return "#777";
+    }
+  };
   
   const EXAMPLE_PDB_URL = "7D93.pdb";
   const ABSTRACT_FIGURE_URL = "CholBindAbstractFigure.png";
@@ -268,18 +316,35 @@ export default function CholNet() {
         const resi = r?.clr_residue_number ?? "";
         const clr_id = `CLR ${chain}${resi}`;
 
+        const gnnScore = r?.GNN?.mean_score;
+        const gatScore = r?.GAT?.mean_score;
+        const gcnScore = r?.GCN?.mean_score;
+
         rows.push({
           filename: fname,
           rank: r.rank,
           clr_id,
-          GNN: r?.GNN?.mean_score ?? "",
-          GAT: r?.GAT?.mean_score ?? "",
-          GCN: r?.GCN?.mean_score ?? "",
+          GNN: gnnScore ?? "",
+          GNN_label: getScoreLabel("GNN", gnnScore),
+          GAT: gatScore ?? "",
+          GAT_label: getScoreLabel("GAT", gatScore),
+          GCN: gcnScore ?? "",
+          GCN_label: getScoreLabel("GCN", gcnScore),
         });
       }
     }
 
-    const headers = ["filename", "rank", "clr_id", "GNN", "GAT", "GCN"];
+    const headers = [
+      "filename",
+      "rank",
+      "clr_id",
+      "GNN",
+      "GNN_label",
+      "GAT",
+      "GAT_label",
+      "GCN",
+      "GCN_label",
+    ];
     const esc = (v) => {
       const s = String(v ?? "");
       return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
@@ -539,6 +604,51 @@ export default function CholNet() {
             )}
           </div>
 
+          <div style={styles.thresholdLegend}>
+            <div style={styles.thresholdTitle}>
+              Model-specific thresholds averaged across five spy experiments
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={styles.thresholdTable}>
+                <thead>
+                  <tr>
+                    <th style={styles.thresholdTh}>Model</th>
+                    <th style={styles.thresholdTh}>Negative</th>
+                    <th style={styles.thresholdTh}>PseudoNegative</th>
+                    <th style={styles.thresholdTh}>PseudoPositive</th>
+                    <th style={styles.thresholdTh}>Positive</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modelOrder.map((modelName) => {
+                    const t = SCORE_THRESHOLDS[modelName];
+
+                    return (
+                      <tr key={modelName}>
+                        <td style={styles.thresholdTd}>
+                          <strong>{modelName}</strong>
+                        </td>
+                        <td style={styles.thresholdTd}>
+                          score &lt; {t.p25.toFixed(6)}
+                        </td>
+                        <td style={styles.thresholdTd}>
+                          {t.p25.toFixed(6)} ≤ score &lt; {t.p50.toFixed(6)}
+                        </td>
+                        <td style={styles.thresholdTd}>
+                          {t.p50.toFixed(6)} ≤ score &lt; {t.p75.toFixed(6)}
+                        </td>
+                        <td style={styles.thresholdTd}>
+                          score ≥ {t.p75.toFixed(6)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div style={{ overflowX: "auto" }}>
             <table style={styles.table}>
               <thead>
@@ -617,15 +727,28 @@ export default function CholNet() {
                         if (!data) return <td key={modelName} style={styles.tdMuted}>—</td>;
 
                         const score = Number(data.mean_score);
-                        const isHigh = score > 0.5;
+                        const scoreLabel = getScoreLabel(modelName, score);
+                        const labelColor = getLabelColor(scoreLabel);
 
                         return (
                           <td key={modelName} style={styles.td}>
-                            <div style={{ fontWeight: 700, color: isHigh ? "green" : "#d9534f" }}>
+                            <div style={{ fontWeight: 700, color: labelColor }}>
                               {Number.isFinite(score) ? score.toFixed(4) : "—"}
                             </div>
-                            <div style={{ fontSize: 12, color: "#555" }}>
-                              {isHigh ? "Positive" : "Negative"}
+                            <div
+                              style={{
+                                display: "inline-block",
+                                marginTop: 3,
+                                padding: "2px 7px",
+                                borderRadius: 999,
+                                border: `1px solid ${labelColor}`,
+                                color: labelColor,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {scoreLabel}
                             </div>
                           </td>
                         );
@@ -653,7 +776,8 @@ export default function CholNet() {
           </button>
 
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
-            CSV contains one row per CLR per PDB file, including rank based on GNN score.
+            CSV contains one row per CLR per PDB file, including rank and the
+            percentile-based label for every model score.
           </div>
         </div>
       )}
@@ -745,6 +869,37 @@ const styles = {
     gap: 10,
     flexWrap: "wrap",
     fontSize: 14,
+  },
+  thresholdLegend: {
+    marginTop: 12,
+    padding: "10px 12px",
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    background: "#fafafa",
+    color: "#444",
+    fontSize: 13,
+  },
+  thresholdTitle: {
+    marginBottom: 8,
+    fontWeight: 700,
+    color: "#333",
+  },
+  thresholdTable: {
+    width: "100%",
+    borderCollapse: "collapse",
+    background: "white",
+  },
+  thresholdTh: {
+    padding: "7px 9px",
+    border: "1px solid #ddd",
+    background: "#f3f3f3",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+  },
+  thresholdTd: {
+    padding: "7px 9px",
+    border: "1px solid #ddd",
+    whiteSpace: "nowrap",
   },
   selectedBadge: {
     display: "inline-block",
