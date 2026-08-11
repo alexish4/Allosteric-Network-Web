@@ -10,7 +10,9 @@ export default function CholNet() {
 
   const [files, setFiles] = useState([]); // batch PDBs
   const [batchResults, setBatchResults] = useState(null);
+  const [batchInterpretation, setBatchInterpretation] = useState(null);
   const [selectedClr, setSelectedClr] = useState(null);
+  const [selectedModel, setSelectedModel] = useState("GNN");
   const isBatchMode = files.length > 0;
 
   const viewerDivRef = useRef(null);
@@ -88,6 +90,20 @@ export default function CholNet() {
     }));
   }, [sortedResults]);
 
+  const selectedResult = useMemo(() => {
+    if (!selectedClr) return null;
+    return (
+      rankedResults.find(
+        (result) =>
+          `${result?.clr_chain_id ?? ""}${result?.clr_residue_number ?? ""}` ===
+          selectedClr.key
+      ) || null
+    );
+  }, [rankedResults, selectedClr]);
+
+  const selectedInterpretation =
+    selectedResult?.[selectedModel]?.interpretation || null;
+
   const clrColorMap = useMemo(() => {
     if (!Array.isArray(results)) return {};
 
@@ -133,9 +149,16 @@ export default function CholNet() {
     const key = `${chain}${resi}`;
 
     // Clicking the selected CLR again clears the selection.
-    setSelectedClr((current) =>
-      current?.key === key ? null : { chain, resi, key }
+    if (selectedClr?.key === key) {
+      setSelectedClr(null);
+      return;
+    }
+
+    const firstModelWithInterpretation = modelOrder.find(
+      (modelName) => r?.[modelName]?.interpretation
     );
+    setSelectedModel(firstModelWithInterpretation || "GNN");
+    setSelectedClr({ chain, resi, key });
   };
 
   // Load 3Dmol once
@@ -160,6 +183,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setBatchInterpretation(null);
     setSelectedClr(null);
     setFiles([]); // leave batch mode
 
@@ -236,6 +260,44 @@ export default function CholNet() {
         stick: { color: "#ff00ff", radius: 0.38 },
         sphere: { color: "#ff00ff", scale: 0.28 },
       });
+
+      // Interpretation display: orange sticks mark important residues and red
+      // spheres mark the exact important atoms for the selected architecture.
+      const importantResidues = Array.isArray(
+        selectedInterpretation?.top_residues
+      )
+        ? selectedInterpretation.top_residues
+        : [];
+      const importantAtoms = Array.isArray(selectedInterpretation?.top_atoms)
+        ? selectedInterpretation.top_atoms
+        : [];
+
+      for (const residue of importantResidues) {
+        const selection = {
+          chain: String(residue?.chain_id ?? ""),
+          resi: Number(residue?.residue_number),
+        };
+        if (!Number.isFinite(selection.resi)) continue;
+
+        if (typeof viewer.addStyle === "function") {
+          viewer.addStyle(selection, {
+            stick: { color: "#f59e0b", radius: 0.18 },
+          });
+        }
+      }
+
+      for (const atom of importantAtoms) {
+        const serial = Number(atom?.atom_serial);
+        if (!Number.isFinite(serial)) continue;
+        const selection = { serial };
+
+        if (typeof viewer.addStyle === "function") {
+          viewer.addStyle(selection, {
+            stick: { color: "#dc2626", radius: 0.23 },
+            sphere: { color: "#dc2626", scale: 0.34 },
+          });
+        }
+      }
     }
 
     viewer.setHoverable(
@@ -293,12 +355,30 @@ export default function CholNet() {
 
     viewer.render();
     viewer.resize();
-  }, [pdbText, results, clrColorMap, selectedClr]);
+  }, [
+    pdbText,
+    results,
+    clrColorMap,
+    selectedClr,
+    selectedModel,
+    selectedInterpretation,
+  ]);
 
   const downloadBatchCsv = () => {
     if (!Array.isArray(batchResults)) return;
 
     const rows = [];
+
+    const summaryText = (modelName, categoryKey, labelKey) => {
+      const records =
+        batchInterpretation?.models?.[modelName]?.[categoryKey] || [];
+      return records
+        .map(
+          (record) =>
+            `${record[labelKey]} (${Number(record.percent || 0).toFixed(1)}%)`
+        )
+        .join("; ");
+    };
 
     for (const item of batchResults) {
       const fname = item.filename || "";
@@ -330,6 +410,24 @@ export default function CholNet() {
           GAT_label: getScoreLabel("GAT", gatScore),
           GCN: gcnScore ?? "",
           GCN_label: getScoreLabel("GCN", gcnScore),
+          GNN_top_atom_types: summaryText("GNN", "top_atom_types", "atom_type"),
+          GNN_top_residue_types: summaryText(
+            "GNN",
+            "top_residue_types",
+            "residue_name"
+          ),
+          GAT_top_atom_types: summaryText("GAT", "top_atom_types", "atom_type"),
+          GAT_top_residue_types: summaryText(
+            "GAT",
+            "top_residue_types",
+            "residue_name"
+          ),
+          GCN_top_atom_types: summaryText("GCN", "top_atom_types", "atom_type"),
+          GCN_top_residue_types: summaryText(
+            "GCN",
+            "top_residue_types",
+            "residue_name"
+          ),
         });
       }
     }
@@ -344,6 +442,12 @@ export default function CholNet() {
       "GAT_label",
       "GCN",
       "GCN_label",
+      "GNN_top_atom_types",
+      "GNN_top_residue_types",
+      "GAT_top_atom_types",
+      "GAT_top_residue_types",
+      "GCN_top_atom_types",
+      "GCN_top_residue_types",
     ];
     const esc = (v) => {
       const s = String(v ?? "");
@@ -368,6 +472,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setBatchInterpretation(null);
     setSelectedClr(null);
 
     if (!file || !file.name.toLowerCase().endsWith(".pdb")) {
@@ -384,8 +489,27 @@ export default function CholNet() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (res.data?.status === "success") setResults(res.data.results);
-      else setError(res.data?.message || "Processing error.");
+      if (res.data?.status === "success") {
+        const returnedResults = Array.isArray(res.data.results)
+          ? res.data.results
+          : [];
+        setResults(returnedResults);
+
+        const highestRanked = [...returnedResults].sort(
+          (a, b) => getGnnScore(b) - getGnnScore(a)
+        )[0];
+        if (highestRanked) {
+          const chain = String(highestRanked.clr_chain_id ?? "");
+          const resi = Number(highestRanked.clr_residue_number);
+          const firstModelWithInterpretation = modelOrder.find(
+            (modelName) => highestRanked?.[modelName]?.interpretation
+          );
+          if (Number.isFinite(resi)) {
+            setSelectedClr({ chain, resi, key: `${chain}${resi}` });
+          }
+          setSelectedModel(firstModelWithInterpretation || "GNN");
+        }
+      } else setError(res.data?.message || "Processing error.");
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Request failed.");
     } finally {
@@ -397,6 +521,7 @@ export default function CholNet() {
     setError("");
     setResults(null);
     setBatchResults(null);
+    setBatchInterpretation(null);
     setSelectedClr(null);
 
     if (!files || files.length === 0) {
@@ -413,8 +538,10 @@ export default function CholNet() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (res.data?.status === "success") setBatchResults(res.data.items);
-      else setError(res.data?.message || "Batch processing error.");
+      if (res.data?.status === "success") {
+        setBatchResults(res.data.items);
+        setBatchInterpretation(res.data.interpretation_summary || null);
+      } else setError(res.data?.message || "Batch processing error.");
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Batch request failed.");
     } finally {
@@ -516,6 +643,7 @@ export default function CholNet() {
                 setError("");
                 setResults(null);
                 setBatchResults(null);
+                setBatchInterpretation(null);
                 setSelectedClr(null);
 
                 const picked = Array.from(e.target.files || []).filter((f) =>
@@ -547,6 +675,7 @@ export default function CholNet() {
                   onClick={() => {
                     setFiles([]);
                     setBatchResults(null);
+                    setBatchInterpretation(null);
                     setSelectedClr(null);
                   }}
                 >
@@ -760,9 +889,169 @@ export default function CholNet() {
             </table>
           </div>
 
+          <div style={styles.interpretationSection}>
+            <div style={styles.interpretationHeader}>
+              <div>
+                <h3 style={{ margin: 0 }}>Important residues and atoms</h3>
+                <div style={styles.interpretationSubtitle}>
+                  Select a CLR site, then choose an architecture to update the
+                  structure highlighting.
+                </div>
+              </div>
+
+              {selectedResult && (
+                <div style={styles.modelSelector}>
+                  {modelOrder.map((modelName) => {
+                    const hasInterpretation = Boolean(
+                      selectedResult?.[modelName]?.interpretation
+                    );
+                    const active = selectedModel === modelName;
+                    return (
+                      <button
+                        key={modelName}
+                        type="button"
+                        disabled={!hasInterpretation}
+                        onClick={() => setSelectedModel(modelName)}
+                        style={{
+                          ...styles.modelButton,
+                          ...(active ? styles.modelButtonActive : {}),
+                          opacity: hasInterpretation ? 1 : 0.45,
+                        }}
+                      >
+                        {modelName}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {!selectedResult && (
+              <div style={styles.emptyInterpretation}>
+                Click a CLR row above to view its model interpretation and exact
+                PDB atom/residue IDs.
+              </div>
+            )}
+
+            {selectedResult && selectedInterpretation && (
+              <>
+                <div style={styles.interpretationMeta}>
+                  <strong>{selectedModel}</strong> · {selectedInterpretation.method}
+                  <span style={styles.viewerLegendItem}>
+                    <span
+                      style={{ ...styles.legendSwatch, background: "#f59e0b" }}
+                    />
+                    important residue
+                  </span>
+                  <span style={styles.viewerLegendItem}>
+                    <span
+                      style={{ ...styles.legendSwatch, background: "#dc2626" }}
+                    />
+                    exact atom
+                  </span>
+                </div>
+
+                {selectedInterpretation.warning && (
+                  <div style={styles.interpretationWarning}>
+                    {selectedInterpretation.warning}
+                  </div>
+                )}
+
+                <div style={styles.interpretationGrid}>
+                  <div style={styles.importanceCard}>
+                    <h4 style={styles.importanceTitle}>Top residues</h4>
+                    {Array.isArray(selectedInterpretation.top_residues) &&
+                    selectedInterpretation.top_residues.length > 0 ? (
+                      selectedInterpretation.top_residues.map((residue) => {
+                        const importance = Number(residue.importance || 0);
+                        const residueId = `${residue.chain_id || ""}${
+                          residue.residue_number
+                        }${residue.insertion_code || ""}`;
+                        return (
+                          <div
+                            key={`${residueId}-${residue.residue_name}`}
+                            style={styles.importanceItem}
+                          >
+                            <div style={styles.importanceLabel}>
+                              <strong>{residue.residue_name}</strong> {residueId}
+                            </div>
+                            <div style={styles.importanceTrack}>
+                              <div
+                                style={{
+                                  ...styles.importanceFillResidue,
+                                  width: `${Math.max(
+                                    2,
+                                    Math.min(100, importance * 100)
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <div style={styles.importanceValue}>
+                              {(importance * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={styles.emptySmall}>
+                        Exact residue IDs are unavailable for this site.
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={styles.importanceCard}>
+                    <h4 style={styles.importanceTitle}>Top atoms</h4>
+                    {Array.isArray(selectedInterpretation.top_atoms) &&
+                    selectedInterpretation.top_atoms.length > 0 ? (
+                      selectedInterpretation.top_atoms.map((atom) => {
+                        const importance = Number(atom.importance || 0);
+                        const hasPdbId = Number.isFinite(Number(atom.atom_serial));
+                        const residueId = `${atom.chain_id || ""}${
+                          atom.residue_number ?? ""
+                        }${atom.insertion_code || ""}`;
+                        const label = hasPdbId
+                          ? `${atom.residue_name} ${residueId} · ${
+                              atom.atom_name || atom.atom_type
+                            } · serial ${atom.atom_serial}`
+                          : `graph node ${atom.node_index} · ${atom.atom_type}`;
+                        return (
+                          <div
+                            key={`${atom.node_index}-${atom.atom_serial ?? "node"}`}
+                            style={styles.importanceItem}
+                          >
+                            <div style={styles.importanceLabel}>{label}</div>
+                            <div style={styles.importanceTrack}>
+                              <div
+                                style={{
+                                  ...styles.importanceFillAtom,
+                                  width: `${Math.max(
+                                    2,
+                                    Math.min(100, importance * 100)
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                            <div style={styles.importanceValue}>
+                              {(importance * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div style={styles.emptySmall}>
+                        No positive atom-importance signal was found.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
             Tip: click any evaluated CLR row to highlight and zoom to that exact CLR
-            chain/residue ID. Click it again, or choose “Show all CLRs,” to clear the selection.
+            chain/residue ID. Orange marks important residues and red marks exact
+            important atoms for the selected architecture.
           </div>
         </div>
       )}
@@ -777,8 +1066,62 @@ export default function CholNet() {
 
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
             CSV contains one row per CLR per PDB file, including rank and the
-            percentile-based label for every model score.
+            percentile-based label for every model score. Batch interpretations
+            are aggregated by residue and atom type, without structure-specific IDs.
           </div>
+
+          {batchInterpretation?.models && (
+            <div style={styles.batchInterpretationGrid}>
+              {modelOrder.map((modelName) => {
+                const summary = batchInterpretation.models[modelName] || {};
+                const residueTypes = summary.top_residue_types || [];
+                const atomTypes = summary.top_atom_types || [];
+
+                return (
+                  <div key={modelName} style={styles.batchInterpretationCard}>
+                    <h3 style={{ margin: 0 }}>{modelName}</h3>
+                    <div style={styles.batchMethod}>
+                      {summary.method || "Interpretation unavailable"}
+                    </div>
+
+                    <h4 style={styles.batchSubheading}>Important residue types</h4>
+                    <div style={styles.typeChipWrap}>
+                      {residueTypes.length > 0 ? (
+                        residueTypes.map((record) => (
+                          <span
+                            key={record.residue_name}
+                            style={styles.residueChip}
+                            title={`${record.count} appearances among selected important atoms`}
+                          >
+                            {record.residue_name} · {Number(record.percent).toFixed(1)}%
+                          </span>
+                        ))
+                      ) : (
+                        <span style={styles.emptySmall}>No mapped residue types</span>
+                      )}
+                    </div>
+
+                    <h4 style={styles.batchSubheading}>Important atom types</h4>
+                    <div style={styles.typeChipWrap}>
+                      {atomTypes.length > 0 ? (
+                        atomTypes.map((record) => (
+                          <span
+                            key={record.atom_type}
+                            style={styles.atomChip}
+                            title={`${record.count} appearances among selected important atoms`}
+                          >
+                            {record.atom_type} · {Number(record.percent).toFixed(1)}%
+                          </span>
+                        ))
+                      ) : (
+                        <span style={styles.emptySmall}>No atom types available</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -939,6 +1282,186 @@ const styles = {
     borderBottom: "1px solid #eee",
     color: "#999",
     whiteSpace: "nowrap",
+  },
+  interpretationSection: {
+    marginTop: 18,
+    padding: 16,
+    border: "1px solid #ddd",
+    borderRadius: 10,
+    background: "#fafafa",
+  },
+  interpretationHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  interpretationSubtitle: {
+    marginTop: 3,
+    color: "#555",
+    fontSize: 14,
+  },
+  modelSelector: {
+    display: "flex",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+  modelButton: {
+    padding: "7px 13px",
+    border: "1px solid #aaa",
+    borderRadius: 999,
+    background: "white",
+    color: "#222",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  modelButtonActive: {
+    background: "#111827",
+    borderColor: "#111827",
+    color: "white",
+  },
+  emptyInterpretation: {
+    marginTop: 14,
+    padding: 16,
+    borderRadius: 8,
+    background: "white",
+    color: "#555",
+    fontSize: 15,
+    textAlign: "center",
+  },
+  interpretationMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 14,
+    color: "#444",
+    fontSize: 14,
+  },
+  viewerLegendItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+  },
+  legendSwatch: {
+    display: "inline-block",
+    width: 11,
+    height: 11,
+    borderRadius: 3,
+    border: "1px solid rgba(0,0,0,0.25)",
+  },
+  interpretationWarning: {
+    marginTop: 10,
+    padding: "8px 10px",
+    border: "1px solid #f0c36d",
+    borderRadius: 7,
+    background: "#fff8e5",
+    color: "#6f4b00",
+    fontSize: 13,
+  },
+  interpretationGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: 14,
+    marginTop: 12,
+  },
+  importanceCard: {
+    padding: 13,
+    border: "1px solid #ddd",
+    borderRadius: 9,
+    background: "white",
+  },
+  importanceTitle: {
+    margin: "0 0 10px",
+    color: "#222",
+  },
+  importanceItem: {
+    display: "grid",
+    gridTemplateColumns: "minmax(160px, 1.5fr) minmax(80px, 1fr) 42px",
+    alignItems: "center",
+    gap: 8,
+    margin: "8px 0",
+    fontSize: 13,
+  },
+  importanceLabel: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "#333",
+  },
+  importanceTrack: {
+    height: 8,
+    overflow: "hidden",
+    borderRadius: 999,
+    background: "#e5e7eb",
+  },
+  importanceFillResidue: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#f59e0b",
+  },
+  importanceFillAtom: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#dc2626",
+  },
+  importanceValue: {
+    color: "#555",
+    textAlign: "right",
+    fontVariantNumeric: "tabular-nums",
+  },
+  emptySmall: {
+    color: "#777",
+    fontSize: 13,
+  },
+  batchInterpretationGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 14,
+    marginTop: 16,
+  },
+  batchInterpretationCard: {
+    padding: 15,
+    border: "1px solid #ddd",
+    borderRadius: 10,
+    background: "white",
+  },
+  batchMethod: {
+    color: "#666",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  batchSubheading: {
+    margin: "13px 0 7px",
+    fontSize: 15,
+  },
+  typeChipWrap: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  residueChip: {
+    display: "inline-block",
+    padding: "4px 8px",
+    border: "1px solid #d79520",
+    borderRadius: 999,
+    background: "#fff8e5",
+    color: "#6f4b00",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  atomChip: {
+    display: "inline-block",
+    padding: "4px 8px",
+    border: "1px solid #d66",
+    borderRadius: 999,
+    background: "#fff0f0",
+    color: "#8f1d1d",
+    fontSize: 12,
+    fontWeight: 700,
   },
 
   publicationSection: {

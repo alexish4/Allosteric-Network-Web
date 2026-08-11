@@ -139,19 +139,23 @@ def cholnet_predict():
     if file.filename == '':
         return jsonify({"status": "error", "message": "No selected file"}), 400
 
-    if not file.filename.endswith('.pdb'):
+    if not file.filename.lower().endswith('.pdb'):
         return jsonify({"status": "error", "message": "Invalid file type. Please upload a .pdb file."}), 400
 
     session_id = str(uuid.uuid4())
     session_dir = os.path.join(UPLOAD_FOLDER, session_id)
     os.makedirs(session_dir, exist_ok=True)
 
-    filepath = os.path.join(session_dir, file.filename)
+    safe_filename = os.path.basename(file.filename)
+    filepath = os.path.join(session_dir, safe_filename)
 
     try:
         file.save(filepath)
 
-        response = cholnet_backend.predict(filepath)
+        response = cholnet_backend.predict(
+            filepath,
+            include_interpretation_ids=True,
+        )
         # Expecting your backend returns:
         # {"status":"success","results":[...]} or {"status":"error","message":"..."}
         if response.get("status") == "success":
@@ -169,8 +173,105 @@ def cholnet_predict():
     finally:
         robust_rmtree(session_dir)
 
-from flask import request, jsonify
-import os, uuid
+def _summarize_batch_interpretations(items, top_k=10):
+    """Aggregate general residue/atom types without exposing structure IDs."""
+    model_names = ("GNN", "GAT", "GCN")
+    accumulators = {
+        model_name: {
+            "method": None,
+            "sites_interpreted": 0,
+            "atom_types": {},
+            "residue_types": {},
+        }
+        for model_name in model_names
+    }
+
+    def add_records(target, records, label_key):
+        for record in records or []:
+            label = record.get(label_key)
+            if not label:
+                continue
+            count = int(record.get("count", 0) or 0)
+            if count <= 0:
+                continue
+            importance = float(record.get("mean_importance", 0.0) or 0.0)
+            bucket = target.setdefault(
+                label,
+                {"count": 0, "weighted_importance": 0.0},
+            )
+            bucket["count"] += count
+            bucket["weighted_importance"] += importance * count
+
+    for item in items:
+        for site in item.get("results", []):
+            for model_name in model_names:
+                model_result = site.get(model_name) or {}
+                interpretation = model_result.get("interpretation") or {}
+                if not interpretation:
+                    continue
+                accumulator = accumulators[model_name]
+                accumulator["sites_interpreted"] += 1
+                accumulator["method"] = interpretation.get("method")
+                add_records(
+                    accumulator["atom_types"],
+                    interpretation.get("top_atom_types"),
+                    "atom_type",
+                )
+                add_records(
+                    accumulator["residue_types"],
+                    interpretation.get("top_residue_types"),
+                    "residue_name",
+                )
+
+    def finalize(values, label_key):
+        total = sum(value["count"] for value in values.values())
+        rows = []
+        for label, value in values.items():
+            count = value["count"]
+            rows.append(
+                {
+                    label_key: label,
+                    "count": count,
+                    "percent": (count / total * 100.0) if total else 0.0,
+                    "mean_importance": value["weighted_importance"] / count,
+                }
+            )
+        rows.sort(
+            key=lambda row: (
+                -row["count"],
+                -row["mean_importance"],
+                row[label_key],
+            )
+        )
+        return rows[:top_k]
+
+    models = {}
+    for model_name, accumulator in accumulators.items():
+        models[model_name] = {
+            "method": accumulator["method"],
+            "sites_interpreted": accumulator["sites_interpreted"],
+            "top_atom_types": finalize(accumulator["atom_types"], "atom_type"),
+            "top_residue_types": finalize(
+                accumulator["residue_types"],
+                "residue_name",
+            ),
+        }
+
+    return {
+        "mode": "batch_general",
+        "files_processed": sum(1 for item in items if item.get("results")),
+        "models": models,
+    }
+
+
+def _remove_site_interpretation_details(items):
+    """Batch mode returns only the aggregate type summary, never PDB/node IDs."""
+    for item in items:
+        for site in item.get("results", []):
+            for model_name in ("GNN", "GAT", "GCN"):
+                model_result = site.get(model_name)
+                if isinstance(model_result, dict):
+                    model_result.pop("interpretation", None)
 
 @app.route('/api/cholnet/batch', methods=['POST'])
 def cholnet_predict_batch():
@@ -204,7 +305,10 @@ def cholnet_predict_batch():
             try:
                 f.save(filepath)
 
-                response = cholnet_backend.predict(filepath)
+                response = cholnet_backend.predict(
+                    filepath,
+                    include_interpretation_ids=False,
+                )
                 if response.get("status") == "success":
                     items.append({
                         "filename": basename,
@@ -225,8 +329,14 @@ def cholnet_predict_batch():
                     "error": f"Server Error: {str(e)}"
                 })
 
-        # If you want to treat “all failed” as error, you can add a check here.
-        return jsonify({"status": "success", "items": items}), 200
+        interpretation_summary = _summarize_batch_interpretations(items)
+        _remove_site_interpretation_details(items)
+
+        return jsonify({
+            "status": "success",
+            "items": items,
+            "interpretation_summary": interpretation_summary,
+        }), 200
 
     except Exception as e:
         app.logger.exception("CholNet batch predict failed (outer)")

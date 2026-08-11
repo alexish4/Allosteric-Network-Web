@@ -33,6 +33,8 @@ function NewAllosteric() {
     const [mutData, setMutData] = useState(null);
     const [residueTable, setResidueTable] = useState([]);
 
+    const FIGURE_URL = "Robust_Determination_of_Protein_Allosteric_Signaling_Pathways.png";
+
     const handlePdbFile1Change = (event) => {
         setPdbFile1(event.target.files[0]);
     };
@@ -417,6 +419,14 @@ function NewAllosteric() {
     return (
         <div>
             <h1>Current-Flow-Allostery</h1>
+
+            <div className="abstract-figure-container">
+                <img
+                    src={FIGURE_URL}
+                    alt="Current-Flow-Allostery overview"
+                    className="abstract-figure"
+                />
+            </div>
             Please Submit PDB Files: <input type="file" onChange={handlePdbFile1Change} /> <input type="file" onChange={handlePdbFile2Change} />
             <br></br>
             Please Submit DCD Files (Match Order With PDB Files): <input type="file" onChange={handleDCDFile1Change} /> <input type="file" onChange={handleDCDFile2Change} />
