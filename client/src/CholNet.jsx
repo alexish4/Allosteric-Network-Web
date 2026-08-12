@@ -13,6 +13,8 @@ export default function CholNet() {
   const [batchInterpretation, setBatchInterpretation] = useState(null);
   const [selectedClr, setSelectedClr] = useState(null);
   const [selectedModel, setSelectedModel] = useState("GNN");
+  const [interpretationSchemaVersion, setInterpretationSchemaVersion] =
+    useState(null);
   const isBatchMode = files.length > 0;
 
   const viewerDivRef = useRef(null);
@@ -103,6 +105,7 @@ export default function CholNet() {
 
   const selectedInterpretation =
     selectedResult?.[selectedModel]?.interpretation || null;
+  const selectedModelResult = selectedResult?.[selectedModel] || null;
 
   const clrColorMap = useMemo(() => {
     if (!Array.isArray(results)) return {};
@@ -154,10 +157,10 @@ export default function CholNet() {
       return;
     }
 
-    const firstModelWithInterpretation = modelOrder.find(
-      (modelName) => r?.[modelName]?.interpretation
-    );
-    setSelectedModel(firstModelWithInterpretation || "GNN");
+    const firstAvailableModel =
+      modelOrder.find((modelName) => r?.[modelName]?.interpretation) ||
+      modelOrder.find((modelName) => r?.[modelName]);
+    setSelectedModel(firstAvailableModel || "GNN");
     setSelectedClr({ chain, resi, key });
   };
 
@@ -185,6 +188,7 @@ export default function CholNet() {
     setBatchResults(null);
     setBatchInterpretation(null);
     setSelectedClr(null);
+    setInterpretationSchemaVersion(null);
     setFiles([]); // leave batch mode
 
     setFile(f || null);
@@ -474,6 +478,7 @@ export default function CholNet() {
     setBatchResults(null);
     setBatchInterpretation(null);
     setSelectedClr(null);
+    setInterpretationSchemaVersion(null);
 
     if (!file || !file.name.toLowerCase().endsWith(".pdb")) {
       setError("Please choose a .pdb file.");
@@ -494,6 +499,9 @@ export default function CholNet() {
           ? res.data.results
           : [];
         setResults(returnedResults);
+        setInterpretationSchemaVersion(
+          res.data.interpretation_schema_version ?? null
+        );
 
         const highestRanked = [...returnedResults].sort(
           (a, b) => getGnnScore(b) - getGnnScore(a)
@@ -501,13 +509,14 @@ export default function CholNet() {
         if (highestRanked) {
           const chain = String(highestRanked.clr_chain_id ?? "");
           const resi = Number(highestRanked.clr_residue_number);
-          const firstModelWithInterpretation = modelOrder.find(
-            (modelName) => highestRanked?.[modelName]?.interpretation
-          );
+          const firstAvailableModel =
+            modelOrder.find(
+              (modelName) => highestRanked?.[modelName]?.interpretation
+            ) || modelOrder.find((modelName) => highestRanked?.[modelName]);
           if (Number.isFinite(resi)) {
             setSelectedClr({ chain, resi, key: `${chain}${resi}` });
           }
-          setSelectedModel(firstModelWithInterpretation || "GNN");
+          setSelectedModel(firstAvailableModel || "GNN");
         }
       } else setError(res.data?.message || "Processing error.");
     } catch (err) {
@@ -523,6 +532,7 @@ export default function CholNet() {
     setBatchResults(null);
     setBatchInterpretation(null);
     setSelectedClr(null);
+    setInterpretationSchemaVersion(null);
 
     if (!files || files.length === 0) {
       setError("Please select a folder (batch) with .pdb files.");
@@ -645,6 +655,7 @@ export default function CholNet() {
                 setBatchResults(null);
                 setBatchInterpretation(null);
                 setSelectedClr(null);
+                setInterpretationSchemaVersion(null);
 
                 const picked = Array.from(e.target.files || []).filter((f) =>
                   f.name.toLowerCase().endsWith(".pdb")
@@ -677,6 +688,7 @@ export default function CholNet() {
                     setBatchResults(null);
                     setBatchInterpretation(null);
                     setSelectedClr(null);
+                    setInterpretationSchemaVersion(null);
                   }}
                 >
                   Clear
@@ -902,6 +914,7 @@ export default function CholNet() {
               {selectedResult && (
                 <div style={styles.modelSelector}>
                   {modelOrder.map((modelName) => {
+                    const hasModelResult = Boolean(selectedResult?.[modelName]);
                     const hasInterpretation = Boolean(
                       selectedResult?.[modelName]?.interpretation
                     );
@@ -910,15 +923,32 @@ export default function CholNet() {
                       <button
                         key={modelName}
                         type="button"
-                        disabled={!hasInterpretation}
-                        onClick={() => setSelectedModel(modelName)}
+                        aria-pressed={active}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setSelectedModel(modelName);
+                        }}
+                        title={
+                          hasInterpretation
+                            ? `Show ${modelName} interpretation`
+                            : hasModelResult
+                            ? `${modelName} score exists, but its interpretation payload is missing`
+                            : `${modelName} model result is unavailable`
+                        }
                         style={{
                           ...styles.modelButton,
                           ...(active ? styles.modelButtonActive : {}),
-                          opacity: hasInterpretation ? 1 : 0.45,
+                          opacity: hasModelResult ? 1 : 0.65,
                         }}
                       >
                         {modelName}
+                        {!hasInterpretation && (
+                          <span aria-hidden="true" style={styles.modelWarningDot}>
+                            !
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1045,6 +1075,29 @@ export default function CholNet() {
                   </div>
                 </div>
               </>
+            )}
+
+            {selectedResult && !selectedInterpretation && (
+              <div style={styles.missingInterpretation}>
+                <strong>{selectedModel} is selected.</strong>{" "}
+                {selectedModelResult
+                  ? "Its prediction score was returned, but its interpretation payload was not."
+                  : "No prediction result was returned for this architecture."}
+                {selectedModelResult && interpretationSchemaVersion === null && (
+                  <>
+                    {" "}The server appears to be using the older score-only API.
+                    Restart the Python web service after deploying the updated
+                    <code style={styles.inlineCode}> cholbind.py</code> and
+                    <code style={styles.inlineCode}> application.py</code> files.
+                  </>
+                )}
+                {selectedModelResult && interpretationSchemaVersion !== null && (
+                  <>
+                    {" "}Check the Python server log for an interpretation error or
+                    a missing model checkpoint.
+                  </>
+                )}
+              </div>
             )}
           </div>
 
@@ -1306,6 +1359,9 @@ const styles = {
     display: "flex",
     gap: 7,
     flexWrap: "wrap",
+    position: "relative",
+    zIndex: 2,
+    pointerEvents: "auto",
   },
   modelButton: {
     padding: "7px 13px",
@@ -1316,11 +1372,41 @@ const styles = {
     cursor: "pointer",
     fontSize: 14,
     fontWeight: 700,
+    position: "relative",
+    pointerEvents: "auto",
   },
   modelButtonActive: {
     background: "#111827",
     borderColor: "#111827",
     color: "white",
+  },
+  modelWarningDot: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 16,
+    height: 16,
+    marginLeft: 6,
+    borderRadius: 999,
+    background: "#b45309",
+    color: "white",
+    fontSize: 11,
+    lineHeight: 1,
+    verticalAlign: "middle",
+  },
+  missingInterpretation: {
+    marginTop: 14,
+    padding: "11px 13px",
+    border: "1px solid #f0c36d",
+    borderRadius: 8,
+    background: "#fff8e5",
+    color: "#6f4b00",
+    fontSize: 14,
+  },
+  inlineCode: {
+    padding: "1px 4px",
+    borderRadius: 4,
+    background: "rgba(255,255,255,0.75)",
   },
   emptyInterpretation: {
     marginTop: 14,

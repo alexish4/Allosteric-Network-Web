@@ -33,7 +33,7 @@ PROTEIN_RESIDUES = {
     "ASX", "GLX", "SEC", "PYL", "MSE",
 }
 
-_CLR_TAG_RE = re.compile(r"_CLR(-?\d+)([A-Za-z0-9])_")
+_CLR_TAG_RE = re.compile(r"_CLR(-?\d+)([A-Za-z0-9])(?=[_-])")
 
 
 def parse_clr_from_path(path):
@@ -820,7 +820,11 @@ class CholNetBackend:
 
                 results.append(bucket)
 
-            return {"status": "success", "results": results}
+            return {
+                "status": "success",
+                "interpretation_schema_version": 1,
+                "results": results,
+            }
 
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
