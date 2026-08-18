@@ -224,10 +224,14 @@ export default function CholNet() {
     viewer.addModel(pdbText, "pdb");
 
     viewer.setStyle({}, { cartoon: {} });
+    // Keep all original non-water HETATM ligands visible. Their residue names
+    // are preserved by the backend; green distinguishes them from evaluated
+    // CLR sites, which receive their own colors below.
     viewer.setStyle(
-      { resn: "CLR" },
-      { stick: { color: "gold", radius: 0.2 } }
+      { hetflag: true },
+      { stick: { colorscheme: "greenCarbon", radius: 0.18 } }
     );
+    viewer.setStyle({ resn: ["HOH", "WAT", "DOD"] }, {});
 
     if (Array.isArray(results) && results.length > 0) {
       for (const r of results) {
@@ -246,13 +250,19 @@ export default function CholNet() {
       }
     }
 
-    // When a CLR is selected from the table, dim every CLR and strongly
-    // highlight only the selected chain/residue combination.
+    // When a CLR is selected from the table, dim only the evaluated CLR sites
+    // (not an unrelated experimental CLR) and strongly highlight the selected
+    // chain/residue combination.
     if (selectedClr) {
-      viewer.setStyle(
-        { resn: "CLR" },
-        { stick: { color: "#c7c7c7", radius: 0.14 } }
-      );
+      for (const r of results || []) {
+        const chain = r?.clr_chain_id;
+        const resi = Number(r?.clr_residue_number);
+        if (chain == null || !Number.isFinite(resi)) continue;
+        viewer.setStyle(
+          { resn: "CLR", chain: String(chain), resi },
+          { stick: { color: "#c7c7c7", radius: 0.14 } }
+        );
+      }
 
       const selectedClrSel = {
         resn: "CLR",
@@ -305,7 +315,7 @@ export default function CholNet() {
     }
 
     viewer.setHoverable(
-      { resn: "CLR" },
+      { hetflag: true },
       true,
       function (atom) {
         if (atom.label) return;
@@ -498,6 +508,14 @@ export default function CholNet() {
         const returnedResults = Array.isArray(res.data.results)
           ? res.data.results
           : [];
+        if (
+          typeof res.data.structure_pdb === "string" &&
+          res.data.structure_pdb.trim()
+        ) {
+          // Show the exact analyzed complex returned by the backend: the
+          // original uploaded structure plus newly docked CLR poses.
+          setPdbText(res.data.structure_pdb);
+        }
         setResults(returnedResults);
         setInterpretationSchemaVersion(
           res.data.interpretation_schema_version ?? null
@@ -858,6 +876,28 @@ export default function CholNet() {
                         >
                           CLR {clrKey}
                         </strong>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            marginLeft: 7,
+                            padding: "1px 6px",
+                            borderRadius: 999,
+                            background:
+                              r.site_source === "vina_docked"
+                                ? "#fff4d6"
+                                : "#dcfce7",
+                            color:
+                              r.site_source === "vina_docked"
+                                ? "#8a5a00"
+                                : "#166534",
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {r.site_source === "vina_docked"
+                            ? "Vina docked"
+                            : "Uploaded"}
+                        </span>
                         {isSelected && (
                           <span style={styles.selectedBadge}>Selected</span>
                         )}
@@ -1104,7 +1144,9 @@ export default function CholNet() {
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
             Tip: click any evaluated CLR row to highlight and zoom to that exact CLR
             chain/residue ID. Orange marks important residues and red marks exact
-            important atoms for the selected architecture.
+            important atoms for the selected architecture. Green sticks are
+            retained non-water experimental ligands that are not styled as an
+            evaluated CLR site.
           </div>
         </div>
       )}

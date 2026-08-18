@@ -16,6 +16,7 @@ from torch_geometric.nn import GATConv, GCNConv, global_mean_pool
 
 # Custom preprocessing used by the existing website.
 from FilterAtomsGraphs import create_graphs
+from vina_docking import DockingConfig, DockingError, dock_cholesterol
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -638,12 +639,32 @@ def _prediction_payload(probabilities, experiment_scores, interpretation):
 
 
 class CholNetBackend:
-    def __init__(self, gat_path, gcn_path, gnn_path, k_ensembles=50):
+    def __init__(
+        self,
+        gat_path,
+        gcn_path,
+        gnn_path,
+        k_ensembles=50,
+        enable_vina_docking=None,
+        docking_config=None,
+    ):
         self.gat_path = gat_path
         self.gcn_path = gcn_path
         self.gnn_path = gnn_path
         self.k = k_ensembles
         self._inference_lock = threading.RLock()
+
+        if enable_vina_docking is None:
+            enabled_value = os.environ.get("CHOLNET_ENABLE_VINA_DOCKING", "1")
+            enable_vina_docking = enabled_value.strip().lower() not in {
+                "0", "false", "no", "off",
+            }
+        self.enable_vina_docking = bool(enable_vina_docking)
+        self.docking_config = docking_config
+        if self.enable_vina_docking and self.docking_config is None:
+            self.docking_config = DockingConfig.from_environment(
+                os.path.dirname(os.path.abspath(__file__))
+            )
 
         self.gat_models = self._load_gat_models()
         self.gcn_models = self._load_gcn_models()
@@ -713,12 +734,31 @@ class CholNetBackend:
         os.makedirs(session_output_dir, exist_ok=True)
 
         try:
-            create_graphs([pdb_file_path], session_output_dir)
+            prediction_pdb_path = pdb_file_path
+            docking_metadata = None
+            docking_pose_by_clr = {}
+
+            if self.enable_vina_docking:
+                docking_result = dock_cholesterol(
+                    pdb_file_path,
+                    os.path.join(session_output_dir, "docking"),
+                    config=self.docking_config,
+                )
+                prediction_pdb_path = docking_result.complex_pdb
+                docking_metadata = docking_result.api_metadata()
+                docking_pose_by_clr = {
+                    (pose.residue_number, pose.chain_id): pose.as_dict()
+                    for pose in docking_result.assigned_poses
+                }
+
+            preprocessing_dir = os.path.join(session_output_dir, "preprocessing")
+            os.makedirs(preprocessing_dir, exist_ok=True)
+            create_graphs([prediction_pdb_path], preprocessing_dir)
 
             graph_by_clr = {}
             matrix_by_clr = {}
             generated_pdb_paths = []
-            for root, _, files in os.walk(session_output_dir):
+            for root, _, files in os.walk(preprocessing_dir):
                 for filename in files:
                     full_path = os.path.join(root, filename)
                     if filename.lower().endswith(".pdb"):
@@ -739,9 +779,12 @@ class CholNetBackend:
             if not clr_keys:
                 return {
                     "status": "error",
-                    "message": (
-                        "Preprocessing failed. No graph files were generated. "
-                        "Ensure a CLR/CHL ligand is present."
+                    "message": "Preprocessing failed. No graph files were generated. "
+                    + (
+                        "No protein atoms were found within 5 Angstrom of any "
+                        "docked cholesterol pose."
+                        if self.enable_vina_docking
+                        else "Ensure a correctly formatted CLR ligand is present."
                     ),
                 }
 
@@ -757,7 +800,7 @@ class CholNetBackend:
                     payload = _load_graph_payload(graph_path)
                     encoded_matrix = np.asarray(payload["encoded_matrix"], dtype=np.float32)
                     atom_metadata, mapping_warning = _map_graph_nodes_to_pdb(
-                        original_pdb_path=pdb_file_path,
+                        original_pdb_path=prediction_pdb_path,
                         clr_key=clr_key,
                         encoded_matrix=encoded_matrix,
                         generated_pdb_paths=generated_pdb_paths,
@@ -767,10 +810,21 @@ class CholNetBackend:
                     "filename": os.path.basename(pdb_file_path),
                     "clr_residue_number": clr_key[0],
                     "clr_chain_id": clr_key[1],
+                    "site_source": (
+                        "vina_docked"
+                        if clr_key in docking_pose_by_clr
+                        else (
+                            "uploaded_experimental"
+                            if self.enable_vina_docking
+                            else "uploaded"
+                        )
+                    ),
                     "GAT": None,
                     "GCN": None,
                     "GNN": None,
                 }
+                if clr_key in docking_pose_by_clr:
+                    bucket["docking_pose"] = docking_pose_by_clr[clr_key]
 
                 if graph_path and encoded_matrix is not None:
                     bucket["GAT"] = self._evaluate_gat(
@@ -820,12 +874,33 @@ class CholNetBackend:
 
                 results.append(bucket)
 
-            return {
+            response = {
                 "status": "success",
                 "interpretation_schema_version": 1,
+                "docking": docking_metadata,
                 "results": results,
             }
+            if include_interpretation_ids:
+                # The single-file viewer needs the exact structure used for
+                # prediction.  With Vina enabled, this is the untouched upload
+                # (including its original HETATM ligands and residue names) plus
+                # the newly docked CLR poses.
+                with open(
+                    prediction_pdb_path,
+                    "r",
+                    encoding="utf-8",
+                    errors="replace",
+                ) as handle:
+                    response["structure_pdb"] = handle.read()
+                response["structure_source"] = (
+                    "uploaded_with_vina_clr_poses"
+                    if self.enable_vina_docking
+                    else "uploaded"
+                )
+            return response
 
+        except DockingError as exc:
+            return {"status": "error", "message": f"Vina docking failed: {exc}"}
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
         finally:

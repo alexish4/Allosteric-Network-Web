@@ -50,7 +50,8 @@ cholnet_backend = CholNetBackend(
     gat_path="CholBindModels/GAT_Model",
     gcn_path="CholBindModels/GCN_Model",
     gnn_path="CholBindModels/GNN_Model",
-    k_ensembles=5
+    k_ensembles=5,
+    enable_vina_docking=True,
 )
 print("CholNet Backend Initialized and Ready.")
 
@@ -312,7 +313,8 @@ def cholnet_predict_batch():
                 if response.get("status") == "success":
                     items.append({
                         "filename": basename,
-                        "results": response.get("results", [])
+                        "results": response.get("results", []),
+                        "docking": response.get("docking"),
                     })
                 else:
                     items.append({
