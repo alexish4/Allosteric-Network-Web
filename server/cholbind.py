@@ -419,6 +419,49 @@ def _summarize_categories(records, key_name, output_name):
     return summary
 
 
+def _interaction_distance_bin(distance):
+    """Use the same residue-contact distance ranges as the paper notebooks."""
+    distance = float(distance)
+    if distance < 8.0:
+        return "4–<8 Å"
+    if distance < 12.0:
+        return "8–<12 Å"
+    if distance < 16.0:
+        return "12–<16 Å"
+    if distance < 20.0:
+        return "16–<20 Å"
+    return "≥20 Å"
+
+
+def _summarize_interaction_categories(records, key_name, output_name):
+    """Describe selected interaction types without retaining PDB identifiers."""
+    grouped = defaultdict(
+        lambda: {"count": 0, "importance_sum": 0.0, "distance_sum": 0.0}
+    )
+    for record in records:
+        label = record.get(key_name)
+        if not label:
+            continue
+        values = grouped[label]
+        values["count"] += 1
+        values["importance_sum"] += float(record.get("importance", 0.0))
+        values["distance_sum"] += float(record.get("distance_angstrom", 0.0))
+
+    summary = []
+    for label, values in grouped.items():
+        count = values["count"]
+        summary.append(
+            {
+                output_name: label,
+                "count": count,
+                "mean_importance": values["importance_sum"] / count,
+                "mean_distance_angstrom": values["distance_sum"] / count,
+            }
+        )
+    summary.sort(key=lambda item: (-item["count"], -item["mean_importance"], item[output_name]))
+    return summary
+
+
 def _build_atom_interpretation(
     node_scores,
     encoded_matrix,
@@ -428,6 +471,8 @@ def _build_atom_interpretation(
     top_k=5,
     warning=None,
     top_edges=None,
+    interaction_summaries=None,
+    interaction_filters=None,
 ):
     node_scores = np.asarray(node_scores, dtype=np.float64)[: encoded_matrix.shape[0]]
     normalized = _positive_normalize(node_scores)
@@ -509,11 +554,16 @@ def _build_atom_interpretation(
         "top_residue_types": residue_type_summary,
         "warning": warning,
     }
+    if interaction_summaries is not None:
+        result.update(interaction_summaries)
+    if interaction_filters is not None:
+        result["interaction_filters"] = interaction_filters
     if include_identifiers:
         result["top_atoms"] = detailed_atoms
         result["top_residues"] = detailed_residues
         if top_edges is not None:
             result["top_edges"] = top_edges
+            result["top_residue_interactions"] = top_edges
     return result
 
 
@@ -558,6 +608,8 @@ def _edge_based_interpretation(
         if atom_metadata is not None:
             source_atom = atom_metadata[source]
             target_atom = atom_metadata[target]
+            # Residue names alone are not identities: LEU A44–LEU A45 is a
+            # valid connection, whereas two atoms in LEU A44 are not.
             if _residue_key(source_atom) == _residue_key(target_atom):
                 continue
             distance = _squared_distance(source_atom, target_atom) ** 0.5
@@ -567,6 +619,18 @@ def _edge_based_interpretation(
             candidate["residue_pair"] = tuple(
                 sorted((_residue_key(source_atom), _residue_key(target_atom)))
             )
+            candidate["residue_pair_type"] = "–".join(
+                sorted((source_atom["residue_name"], target_atom["residue_name"]))
+            )
+            candidate["atom_pair_type"] = "–".join(
+                sorted(
+                    (
+                        _decode_atom_type(encoded_matrix[source]),
+                        _decode_atom_type(encoded_matrix[target]),
+                    )
+                )
+            )
+            candidate["distance_bin"] = _interaction_distance_bin(distance)
         candidates.append(candidate)
 
     # Preserve the notebook's idea of one representative interaction per
@@ -586,6 +650,7 @@ def _edge_based_interpretation(
 
     node_scores = np.zeros(encoded_matrix.shape[0], dtype=np.float64)
     top_edges = []
+    interaction_records = []
     for rank, candidate in enumerate(chosen, start=1):
         normalized = candidate["raw_importance"] / maximum if maximum > 0 else 0.0
         source = candidate["source"]
@@ -593,37 +658,79 @@ def _edge_based_interpretation(
         node_scores[source] += normalized
         node_scores[target] += normalized
 
-        if include_identifiers and atom_metadata is not None:
+        if atom_metadata is not None:
             source_atom = atom_metadata[source]
             target_atom = atom_metadata[target]
-            top_edges.append(
+            interaction_records.append(
                 {
-                    "rank": rank,
-                    "importance": normalized,
+                    "residue_pair": candidate["residue_pair_type"],
+                    "atom_pair": candidate["atom_pair_type"],
+                    "distance_bin": candidate["distance_bin"],
                     "distance_angstrom": candidate["distance_angstrom"],
-                    "model_frequency": candidate["model_frequency"],
-                    "source": {
-                        "node_index": source,
-                        "atom_serial": source_atom["serial"],
-                        "atom_name": source_atom["atom_name"],
-                        "atom_type": _decode_atom_type(encoded_matrix[source]),
-                        "residue_name": source_atom["residue_name"],
-                        "residue_number": source_atom["residue_number"],
-                        "chain_id": source_atom["chain_id"],
-                        "insertion_code": source_atom["insertion_code"],
-                    },
-                    "target": {
-                        "node_index": target,
-                        "atom_serial": target_atom["serial"],
-                        "atom_name": target_atom["atom_name"],
-                        "atom_type": _decode_atom_type(encoded_matrix[target]),
-                        "residue_name": target_atom["residue_name"],
-                        "residue_number": target_atom["residue_number"],
-                        "chain_id": target_atom["chain_id"],
-                        "insertion_code": target_atom["insertion_code"],
-                    },
+                    "importance": normalized,
                 }
             )
+            if include_identifiers:
+                top_edges.append(
+                    {
+                        "rank": rank,
+                        "importance": normalized,
+                        "distance_angstrom": candidate["distance_angstrom"],
+                        "distance_bin": candidate["distance_bin"],
+                        "residue_pair": candidate["residue_pair_type"],
+                        "atom_pair": candidate["atom_pair_type"],
+                        "model_frequency": candidate["model_frequency"],
+                        "models_evaluated": len(edge_runs),
+                        "source": {
+                            "node_index": source,
+                            "atom_serial": source_atom["serial"],
+                            "atom_name": source_atom["atom_name"],
+                            "atom_type": _decode_atom_type(encoded_matrix[source]),
+                            "residue_name": source_atom["residue_name"],
+                            "residue_number": source_atom["residue_number"],
+                            "chain_id": source_atom["chain_id"],
+                            "insertion_code": source_atom["insertion_code"],
+                            "coordinates": {
+                                "x": float(source_atom["x"]),
+                                "y": float(source_atom["y"]),
+                                "z": float(source_atom["z"]),
+                            },
+                        },
+                        "target": {
+                            "node_index": target,
+                            "atom_serial": target_atom["serial"],
+                            "atom_name": target_atom["atom_name"],
+                            "atom_type": _decode_atom_type(encoded_matrix[target]),
+                            "residue_name": target_atom["residue_name"],
+                            "residue_number": target_atom["residue_number"],
+                            "chain_id": target_atom["chain_id"],
+                            "insertion_code": target_atom["insertion_code"],
+                            "coordinates": {
+                                "x": float(target_atom["x"]),
+                                "y": float(target_atom["y"]),
+                                "z": float(target_atom["z"]),
+                            },
+                        },
+                    }
+                )
+
+    interaction_summaries = {
+        "top_residue_pair_types": _summarize_interaction_categories(
+            interaction_records,
+            "residue_pair",
+            "residue_pair",
+        ),
+        "top_atom_pair_types": _summarize_interaction_categories(
+            interaction_records,
+            "atom_pair",
+            "atom_pair",
+        ),
+        "top_interaction_distance_bins": _summarize_interaction_categories(
+            interaction_records,
+            "distance_bin",
+            "distance_bin",
+        ),
+    }
 
     warning = mapping_warning
     if not chosen and warning is None:
@@ -637,6 +744,14 @@ def _edge_based_interpretation(
         top_k=top_k,
         warning=warning,
         top_edges=top_edges,
+        interaction_summaries=interaction_summaries,
+        interaction_filters={
+            "exclude_same_residue": True,
+            "minimum_distance_angstrom": 4.0,
+            "representative_edges_per_residue_pair": 1,
+            "maximum_interactions_per_site": top_k,
+            "models_evaluated": len(edge_runs),
+        },
     )
 
 
@@ -944,7 +1059,7 @@ class CholNetBackend:
 
             response = {
                 "status": "success",
-                "interpretation_schema_version": 1,
+                "interpretation_schema_version": 2,
                 "docking": docking_metadata,
                 "ligand": docking_metadata.get("ligand") if docking_metadata else None,
                 "prediction_scope": (

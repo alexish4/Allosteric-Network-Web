@@ -18,6 +18,144 @@ function getLigandSite(result) {
   };
 }
 
+function getInteractionResidueLabel(atom) {
+  if (!atom?.residue_name) return "Unknown residue";
+  const residueId = `${atom.chain_id || ""}${atom.residue_number ?? ""}${
+    atom.insertion_code || ""
+  }`;
+  return residueId
+    ? `${atom.residue_name} ${residueId}`
+    : String(atom.residue_name);
+}
+
+function ResidueInteractionNetwork({ interactions, general = false }) {
+  const prepared = (Array.isArray(interactions) ? interactions : [])
+    .map((interaction) => {
+      if (general) {
+        const pair = String(interaction?.residue_pair || "").split("–");
+        if (pair.length !== 2 || !pair[0] || !pair[1]) return null;
+        return {
+          source: pair[0],
+          target: pair[1],
+          strength: Number(interaction.percent || interaction.count || 0),
+          caption: `${pair[0]} ↔ ${pair[1]} · ${Number(
+            interaction.percent || 0
+          ).toFixed(1)}% · ${interaction.count || 0} appearances`,
+        };
+      }
+
+      if (!interaction?.source || !interaction?.target) return null;
+      const source = getInteractionResidueLabel(interaction.source);
+      const target = getInteractionResidueLabel(interaction.target);
+      return {
+        source,
+        target,
+        strength: Number(interaction.importance || 0),
+        caption: `${source} ↔ ${target} · ${Number(
+          interaction.distance_angstrom || 0
+        ).toFixed(1)} Å · ${Math.round(
+          Number(interaction.importance || 0) * 100
+        )}% relative importance`,
+      };
+    })
+    .filter(Boolean);
+
+  if (prepared.length === 0) return null;
+
+  const labels = [...new Set(prepared.flatMap((edge) => [edge.source, edge.target]))];
+  const width = 440;
+  const height = general ? 295 : 335;
+  const center = { x: width / 2, y: height / 2 };
+  const radiusX = general ? 145 : 154;
+  const radiusY = general ? 91 : 116;
+  const positions = new Map(
+    labels.map((label, index) => {
+      const angle = (2 * Math.PI * index) / labels.length - Math.PI / 2;
+      return [
+        label,
+        {
+          x: center.x + radiusX * Math.cos(angle),
+          y: center.y + radiusY * Math.sin(angle),
+        },
+      ];
+    })
+  );
+  const maximum = Math.max(...prepared.map((edge) => edge.strength), 1e-9);
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={
+        general
+          ? "Network showing frequently connected residue types"
+          : "Network showing important connections between distinct residues"
+      }
+      style={styles.interactionNetwork}
+    >
+      <ellipse
+        cx={center.x}
+        cy={center.y}
+        rx={radiusX}
+        ry={radiusY}
+        fill="none"
+        stroke="#e9e5f5"
+        strokeWidth="1.5"
+        strokeDasharray="4 6"
+      />
+      {prepared.map((edge, index) => {
+        const source = positions.get(edge.source);
+        const target = positions.get(edge.target);
+        const strength = Math.max(0.12, edge.strength / maximum);
+        const path =
+          edge.source === edge.target
+            ? `M ${source.x} ${source.y} C ${center.x - 35} ${
+                center.y - 25
+              }, ${center.x + 35} ${center.y - 25}, ${target.x} ${target.y}`
+            : `M ${source.x} ${source.y} Q ${center.x} ${center.y} ${target.x} ${target.y}`;
+        return (
+          <path
+            key={`${edge.source}-${edge.target}-${index}`}
+            d={path}
+            fill="none"
+            stroke="#7c3aed"
+            strokeWidth={1.5 + strength * 5}
+            strokeOpacity={0.35 + strength * 0.55}
+            strokeLinecap="round"
+          >
+            <title>{edge.caption}</title>
+          </path>
+        );
+      })}
+      {labels.map((label) => {
+        const position = positions.get(label);
+        return (
+          <g key={label}>
+            <circle
+              cx={position.x}
+              cy={position.y}
+              r="8"
+              fill="#f59e0b"
+              stroke="white"
+              strokeWidth="2"
+            />
+            <text
+              x={position.x}
+              y={position.y - 13}
+              textAnchor="middle"
+              fill="#374151"
+              fontSize={general ? "12" : "11"}
+              fontWeight="700"
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function CholNet() {
   const [file, setFile] = useState(null);
   const [pdbText, setPdbText] = useState("");
@@ -124,6 +262,14 @@ export default function CholNet() {
   const selectedInterpretation =
     selectedResult?.[selectedModel]?.interpretation || null;
   const selectedModelResult = selectedResult?.[selectedModel] || null;
+  const selectedInteractions = useMemo(() => {
+    if (Array.isArray(selectedInterpretation?.top_residue_interactions)) {
+      return selectedInterpretation.top_residue_interactions;
+    }
+    return Array.isArray(selectedInterpretation?.top_edges)
+      ? selectedInterpretation.top_edges
+      : [];
+  }, [selectedInterpretation]);
 
   const clrColorMap = useMemo(() => {
     if (!Array.isArray(results)) return {};
@@ -251,6 +397,7 @@ export default function CholNet() {
       viewerRef.current = $3Dmol.createViewer(el, { backgroundColor: "white" });
     }
     const viewer = viewerRef.current;
+    const importantInteractions = selectedInteractions;
 
     viewer.clear();
     viewer.addModel(pdbText, "pdb");
@@ -348,6 +495,65 @@ export default function CholNet() {
           });
         }
       }
+
+      const endpointPosition = (endpoint) => {
+        const coordinates = endpoint?.coordinates;
+        if (
+          coordinates &&
+          [coordinates.x, coordinates.y, coordinates.z].every((value) =>
+            Number.isFinite(Number(value))
+          )
+        ) {
+          return {
+            x: Number(coordinates.x),
+            y: Number(coordinates.y),
+            z: Number(coordinates.z),
+          };
+        }
+
+        const serial = Number(endpoint?.atom_serial);
+        if (!Number.isFinite(serial) || typeof viewer.selectedAtoms !== "function") {
+          return null;
+        }
+        const atom = viewer.selectedAtoms({ serial })[0];
+        return atom ? { x: atom.x, y: atom.y, z: atom.z } : null;
+      };
+
+      for (const interaction of importantInteractions) {
+        const start = endpointPosition(interaction.source);
+        const end = endpointPosition(interaction.target);
+        if (!start || !end || typeof viewer.addCylinder !== "function") continue;
+
+        const importance = Math.max(
+          0,
+          Math.min(1, Number(interaction.importance || 0))
+        );
+        viewer.addCylinder({
+          start,
+          end,
+          radius: 0.07 + importance * 0.11,
+          color: "#7c3aed",
+          opacity: 0.9,
+          fromCap: 1,
+          toCap: 1,
+        });
+
+        const distance = Number(interaction.distance_angstrom);
+        if (Number.isFinite(distance) && typeof viewer.addLabel === "function") {
+          viewer.addLabel(`${distance.toFixed(1)} Å`, {
+            position: {
+              x: (start.x + end.x) / 2,
+              y: (start.y + end.y) / 2,
+              z: (start.z + end.z) / 2,
+            },
+            backgroundColor: "#7c3aed",
+            backgroundOpacity: 0.88,
+            fontColor: "white",
+            fontSize: 10,
+            inFront: true,
+          });
+        }
+      }
     }
 
     viewer.setHoverable(
@@ -405,11 +611,24 @@ export default function CholNet() {
     }
 
     if (selectedClr) {
-      viewer.zoomTo({
-        resn: selectedClr.resn,
-        chain: selectedClr.chain,
-        resi: selectedClr.resi,
-      });
+      const focusedSelections = [
+        {
+          resn: selectedClr.resn,
+          chain: selectedClr.chain,
+          resi: selectedClr.resi,
+        },
+      ];
+      for (const interaction of importantInteractions) {
+        for (const endpoint of [interaction.source, interaction.target]) {
+          const serial = Number(endpoint?.atom_serial);
+          if (Number.isFinite(serial)) focusedSelections.push({ serial });
+        }
+      }
+      viewer.zoomTo(
+        focusedSelections.length === 1
+          ? focusedSelections[0]
+          : { or: focusedSelections }
+      );
     } else {
       viewer.zoomTo();
     }
@@ -423,6 +642,7 @@ export default function CholNet() {
     selectedClr,
     selectedModel,
     selectedInterpretation,
+    selectedInteractions,
   ]);
 
   const downloadBatchCsv = () => {
@@ -485,11 +705,41 @@ export default function CholNet() {
             "top_residue_types",
             "residue_name"
           ),
+          GAT_top_residue_pairs: summaryText(
+            "GAT",
+            "top_residue_pair_types",
+            "residue_pair"
+          ),
+          GAT_top_atom_pairs: summaryText(
+            "GAT",
+            "top_atom_pair_types",
+            "atom_pair"
+          ),
+          GAT_interaction_distance_bins: summaryText(
+            "GAT",
+            "top_interaction_distance_bins",
+            "distance_bin"
+          ),
           GCN_top_atom_types: summaryText("GCN", "top_atom_types", "atom_type"),
           GCN_top_residue_types: summaryText(
             "GCN",
             "top_residue_types",
             "residue_name"
+          ),
+          GCN_top_residue_pairs: summaryText(
+            "GCN",
+            "top_residue_pair_types",
+            "residue_pair"
+          ),
+          GCN_top_atom_pairs: summaryText(
+            "GCN",
+            "top_atom_pair_types",
+            "atom_pair"
+          ),
+          GCN_interaction_distance_bins: summaryText(
+            "GCN",
+            "top_interaction_distance_bins",
+            "distance_bin"
           ),
         });
       }
@@ -511,8 +761,14 @@ export default function CholNet() {
       "GNN_top_residue_types",
       "GAT_top_atom_types",
       "GAT_top_residue_types",
+      "GAT_top_residue_pairs",
+      "GAT_top_atom_pairs",
+      "GAT_interaction_distance_bins",
       "GCN_top_atom_types",
       "GCN_top_residue_types",
+      "GCN_top_residue_pairs",
+      "GCN_top_atom_pairs",
+      "GCN_interaction_distance_bins",
     ];
     const esc = (v) => {
       const s = String(v ?? "");
@@ -1151,6 +1407,14 @@ export default function CholNet() {
                     />
                     exact atom
                   </span>
+                  {(selectedModel === "GAT" || selectedModel === "GCN") && (
+                    <span style={styles.viewerLegendItem}>
+                      <span
+                        style={{ ...styles.legendSwatch, background: "#7c3aed" }}
+                      />
+                      residue connection
+                    </span>
+                  )}
                 </div>
 
                 {selectedInterpretation.warning && (
@@ -1246,6 +1510,114 @@ export default function CholNet() {
                     )}
                   </div>
                 </div>
+
+                <div style={styles.importanceExplanation}>
+                  Percentages express importance relative to the strongest item
+                  for this ligand site; they are not binding probabilities.
+                  “Serial” is the atom’s identifier in the original PDB file.
+                </div>
+
+                {(selectedModel === "GAT" || selectedModel === "GCN") && (
+                  <div style={styles.interactionSection}>
+                    <div style={styles.interactionHeader}>
+                      <h4 style={styles.interactionTitle}>
+                        Residue-to-residue connections
+                      </h4>
+                      <span style={styles.interactionCount}>
+                        {selectedInteractions.length} selected
+                      </span>
+                    </div>
+                    <div style={styles.interactionExplanation}>
+                      Purple links show the strongest positive graph edges
+                      between different residue IDs. Connections within the same
+                      residue and atom pairs closer than 4 Å are excluded; only
+                      the strongest atom-to-atom edge is retained for each
+                      residue pair.
+                    </div>
+
+                    {selectedInteractions.length > 0 ? (
+                      <div style={styles.interactionLayout}>
+                        <div style={styles.interactionNetworkCard}>
+                          <ResidueInteractionNetwork
+                            interactions={selectedInteractions}
+                          />
+                        </div>
+
+                        <div style={styles.interactionList}>
+                          {selectedInteractions.map((interaction) => {
+                            const source = interaction.source || {};
+                            const target = interaction.target || {};
+                            const importance = Number(interaction.importance || 0);
+                            const distance = Number(interaction.distance_angstrom);
+                            const modelsEvaluated = Number(
+                              interaction.models_evaluated ||
+                                selectedInterpretation?.interaction_filters
+                                  ?.models_evaluated ||
+                                0
+                            );
+
+                            return (
+                              <div
+                                key={`${source.atom_serial}-${target.atom_serial}-${interaction.rank}`}
+                                style={styles.interactionItem}
+                              >
+                                <div style={styles.interactionPair}>
+                                  <strong>
+                                    {getInteractionResidueLabel(source)}
+                                  </strong>
+                                  <span style={styles.interactionArrow}>↔</span>
+                                  <strong>
+                                    {getInteractionResidueLabel(target)}
+                                  </strong>
+                                </div>
+                                <div style={styles.interactionDetails}>
+                                  {source.atom_name || source.atom_type} ↔{" "}
+                                  {target.atom_name || target.atom_type}
+                                  {Number.isFinite(distance) &&
+                                    ` · ${distance.toFixed(1)} Å`}
+                                  {interaction.distance_bin &&
+                                    ` · ${interaction.distance_bin}`}
+                                </div>
+                                <div style={styles.interactionDetails}>
+                                  Ensemble support:{" "}
+                                  {interaction.model_frequency || 0}
+                                  {modelsEvaluated > 0
+                                    ? `/${modelsEvaluated} models`
+                                    : " models"}
+                                  {" · "}
+                                  {source.atom_serial && target.atom_serial
+                                    ? `PDB serials ${source.atom_serial}, ${target.atom_serial}`
+                                    : "atom serial unavailable"}
+                                </div>
+                                <div style={styles.interactionImportanceRow}>
+                                  <div style={styles.importanceTrack}>
+                                    <div
+                                      style={{
+                                        ...styles.importanceFillInteraction,
+                                        width: `${Math.max(
+                                          2,
+                                          Math.min(100, importance * 100)
+                                        )}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <span style={styles.importanceValue}>
+                                    {(importance * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={styles.emptyInteraction}>
+                        No positive edge between distinct mapped residues passed
+                        the 4 Å minimum-distance filter for this site.
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -1276,8 +1648,9 @@ export default function CholNet() {
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
             Tip: click any evaluated pose to highlight and zoom to its exact
             residue-name/chain/residue ID. Orange marks important residues and red
-            marks exact important atoms for the selected architecture. Green sticks
-            are retained non-water experimental ligands that are not evaluated poses.
+            marks exact important atoms. For GAT and GCN, purple lines connect
+            important atoms in different residues. Green sticks are retained
+            non-water experimental ligands that are not evaluated poses.
           </div>
         </div>
       )}
@@ -1310,7 +1683,8 @@ export default function CholNet() {
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
             CSV contains one row per ligand pose per PDB file, including its Vina
             affinity, rank, and percentile-based label for every model score. Batch
-            interpretations are aggregated by residue and atom type, without
+            interpretations count how often residue, atom, and GAT/GCN interaction
+            types appear among each site’s top five features, without
             structure-specific IDs.
           </div>
 
@@ -1320,12 +1694,20 @@ export default function CholNet() {
                 const summary = batchInterpretation.models[modelName] || {};
                 const residueTypes = summary.top_residue_types || [];
                 const atomTypes = summary.top_atom_types || [];
+                const residuePairs = summary.top_residue_pair_types || [];
+                const atomPairs = summary.top_atom_pair_types || [];
+                const distanceBins = summary.top_interaction_distance_bins || [];
+                const supportsInteractions =
+                  modelName === "GAT" || modelName === "GCN";
 
                 return (
                   <div key={modelName} style={styles.batchInterpretationCard}>
                     <h3 style={{ margin: 0 }}>{modelName}</h3>
                     <div style={styles.batchMethod}>
                       {summary.method || "Interpretation unavailable"}
+                    </div>
+                    <div style={styles.batchMethod}>
+                      {summary.sites_interpreted || 0} interpreted ligand sites
                     </div>
 
                     <h4 style={styles.batchSubheading}>Important residue types</h4>
@@ -1361,6 +1743,96 @@ export default function CholNet() {
                         <span style={styles.emptySmall}>No atom types available</span>
                       )}
                     </div>
+
+                    {supportsInteractions && (
+                      <>
+                        <h4 style={styles.batchSubheading}>
+                          Residue-to-residue connection types
+                        </h4>
+                        {residuePairs.length > 0 ? (
+                          <>
+                            <ResidueInteractionNetwork
+                              interactions={residuePairs}
+                              general
+                            />
+                            <div style={styles.typeChipWrap}>
+                              {residuePairs.map((record) => (
+                                <span
+                                  key={record.residue_pair}
+                                  style={styles.interactionChip}
+                                  title={`${record.count} selected cross-residue connections${
+                                    Number.isFinite(
+                                      Number(record.mean_distance_angstrom)
+                                    )
+                                      ? ` · mean ${Number(
+                                          record.mean_distance_angstrom
+                                        ).toFixed(1)} Å`
+                                      : ""
+                                  }`}
+                                >
+                                  {record.residue_pair} ·{" "}
+                                  {Number(record.percent).toFixed(1)}%
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <span style={styles.emptySmall}>
+                            No eligible cross-residue connections
+                          </span>
+                        )}
+
+                        <h4 style={styles.batchSubheading}>
+                          Connected atom-pair types
+                        </h4>
+                        <div style={styles.typeChipWrap}>
+                          {atomPairs.length > 0 ? (
+                            atomPairs.map((record) => (
+                              <span
+                                key={record.atom_pair}
+                                style={styles.interactionChip}
+                                title={`${record.count} appearances among selected residue connections`}
+                              >
+                                {record.atom_pair} ·{" "}
+                                {Number(record.percent).toFixed(1)}%
+                              </span>
+                            ))
+                          ) : (
+                            <span style={styles.emptySmall}>
+                              No connected atom-pair types
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 style={styles.batchSubheading}>
+                          Connection-distance ranges
+                        </h4>
+                        <div style={styles.typeChipWrap}>
+                          {distanceBins.length > 0 ? (
+                            distanceBins.map((record) => (
+                              <span
+                                key={record.distance_bin}
+                                style={styles.distanceChip}
+                                title={`${record.count} selected atom-to-atom connections`}
+                              >
+                                {record.distance_bin} ·{" "}
+                                {Number(record.percent).toFixed(1)}%
+                              </span>
+                            ))
+                          ) : (
+                            <span style={styles.emptySmall}>
+                              No interaction-distance ranges
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={styles.batchInteractionNote}>
+                          Frequencies are based on the top five cross-residue
+                          connections per site. Same-residue and &lt;4 Å
+                          connections are excluded.
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -1731,10 +2203,116 @@ const styles = {
     borderRadius: 999,
     background: "#dc2626",
   },
+  importanceFillInteraction: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#7c3aed",
+  },
   importanceValue: {
     color: "#555",
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
+  },
+  importanceExplanation: {
+    marginTop: 10,
+    color: "#666",
+    fontSize: 12,
+  },
+  interactionSection: {
+    marginTop: 18,
+    padding: 14,
+    border: "1px solid #ded5f6",
+    borderRadius: 10,
+    background: "#fcfaff",
+  },
+  interactionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  interactionTitle: {
+    margin: 0,
+    color: "#4c1d95",
+    fontSize: 17,
+  },
+  interactionCount: {
+    padding: "2px 9px",
+    border: "1px solid #ddd0fb",
+    borderRadius: 999,
+    background: "white",
+    color: "#6d28d9",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  interactionExplanation: {
+    marginTop: 6,
+    color: "#555",
+    fontSize: 13,
+  },
+  interactionLayout: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+    alignItems: "center",
+    gap: 14,
+    marginTop: 12,
+  },
+  interactionNetworkCard: {
+    minWidth: 0,
+    padding: "3px 0",
+    border: "1px solid #eee9fa",
+    borderRadius: 9,
+    background: "white",
+  },
+  interactionNetwork: {
+    display: "block",
+    width: "100%",
+    height: "auto",
+    maxHeight: 335,
+    overflow: "visible",
+  },
+  interactionList: {
+    display: "grid",
+    gap: 8,
+  },
+  interactionItem: {
+    padding: "9px 11px",
+    border: "1px solid #e9e2f8",
+    borderRadius: 8,
+    background: "white",
+  },
+  interactionPair: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    color: "#374151",
+    fontSize: 14,
+  },
+  interactionArrow: {
+    color: "#7c3aed",
+    fontWeight: 700,
+  },
+  interactionDetails: {
+    color: "#666",
+    fontSize: 12,
+  },
+  interactionImportanceRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 44px",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 5,
+    fontSize: 12,
+  },
+  emptyInteraction: {
+    marginTop: 11,
+    padding: "9px 11px",
+    borderRadius: 7,
+    background: "white",
+    color: "#666",
+    fontSize: 13,
   },
   emptySmall: {
     color: "#777",
@@ -1785,6 +2363,32 @@ const styles = {
     color: "#8f1d1d",
     fontSize: 12,
     fontWeight: 700,
+  },
+  interactionChip: {
+    display: "inline-block",
+    padding: "4px 8px",
+    border: "1px solid #ad8bf0",
+    borderRadius: 999,
+    background: "#f5f0ff",
+    color: "#5b21b6",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  distanceChip: {
+    display: "inline-block",
+    padding: "4px 8px",
+    border: "1px solid #94a3b8",
+    borderRadius: 999,
+    background: "#f8fafc",
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  batchInteractionNote: {
+    marginTop: 11,
+    color: "#666",
+    fontSize: 12,
+    lineHeight: 1.5,
   },
 
   publicationSection: {

@@ -156,6 +156,7 @@ def cholnet_predict():
         response = cholnet_backend.predict(
             filepath,
             include_interpretation_ids=True,
+            ligand_smiles=request.form.get("smiles", ""),
         )
         # Expecting your backend returns:
         # {"status":"success","results":[...]} or {"status":"error","message":"..."}
@@ -175,7 +176,7 @@ def cholnet_predict():
         robust_rmtree(session_dir)
 
 def _summarize_batch_interpretations(items, top_k=10):
-    """Aggregate general residue/atom types without exposing structure IDs."""
+    """Aggregate general feature and interaction types without structure IDs."""
     model_names = ("GNN", "GAT", "GCN")
     accumulators = {
         model_name: {
@@ -183,6 +184,9 @@ def _summarize_batch_interpretations(items, top_k=10):
             "sites_interpreted": 0,
             "atom_types": {},
             "residue_types": {},
+            "residue_pair_types": {},
+            "atom_pair_types": {},
+            "interaction_distance_bins": {},
         }
         for model_name in model_names
     }
@@ -198,10 +202,23 @@ def _summarize_batch_interpretations(items, top_k=10):
             importance = float(record.get("mean_importance", 0.0) or 0.0)
             bucket = target.setdefault(
                 label,
-                {"count": 0, "weighted_importance": 0.0},
+                {
+                    "count": 0,
+                    "weighted_importance": 0.0,
+                    "weighted_distance": 0.0,
+                    "distance_count": 0,
+                },
             )
             bucket["count"] += count
             bucket["weighted_importance"] += importance * count
+            distance = record.get("mean_distance_angstrom")
+            try:
+                distance = float(distance)
+            except (TypeError, ValueError):
+                distance = None
+            if distance is not None and np.isfinite(distance):
+                bucket["weighted_distance"] += distance * count
+                bucket["distance_count"] += count
 
     for item in items:
         for site in item.get("results", []):
@@ -223,20 +240,38 @@ def _summarize_batch_interpretations(items, top_k=10):
                     interpretation.get("top_residue_types"),
                     "residue_name",
                 )
+                add_records(
+                    accumulator["residue_pair_types"],
+                    interpretation.get("top_residue_pair_types"),
+                    "residue_pair",
+                )
+                add_records(
+                    accumulator["atom_pair_types"],
+                    interpretation.get("top_atom_pair_types"),
+                    "atom_pair",
+                )
+                add_records(
+                    accumulator["interaction_distance_bins"],
+                    interpretation.get("top_interaction_distance_bins"),
+                    "distance_bin",
+                )
 
     def finalize(values, label_key):
         total = sum(value["count"] for value in values.values())
         rows = []
         for label, value in values.items():
             count = value["count"]
-            rows.append(
-                {
-                    label_key: label,
-                    "count": count,
-                    "percent": (count / total * 100.0) if total else 0.0,
-                    "mean_importance": value["weighted_importance"] / count,
-                }
-            )
+            row = {
+                label_key: label,
+                "count": count,
+                "percent": (count / total * 100.0) if total else 0.0,
+                "mean_importance": value["weighted_importance"] / count,
+            }
+            if value["distance_count"]:
+                row["mean_distance_angstrom"] = (
+                    value["weighted_distance"] / value["distance_count"]
+                )
+            rows.append(row)
         rows.sort(
             key=lambda row: (
                 -row["count"],
@@ -255,6 +290,18 @@ def _summarize_batch_interpretations(items, top_k=10):
             "top_residue_types": finalize(
                 accumulator["residue_types"],
                 "residue_name",
+            ),
+            "top_residue_pair_types": finalize(
+                accumulator["residue_pair_types"],
+                "residue_pair",
+            ),
+            "top_atom_pair_types": finalize(
+                accumulator["atom_pair_types"],
+                "atom_pair",
+            ),
+            "top_interaction_distance_bins": finalize(
+                accumulator["interaction_distance_bins"],
+                "distance_bin",
             ),
         }
 
@@ -309,12 +356,15 @@ def cholnet_predict_batch():
                 response = cholnet_backend.predict(
                     filepath,
                     include_interpretation_ids=False,
+                    ligand_smiles=request.form.get("smiles", ""),
                 )
                 if response.get("status") == "success":
                     items.append({
                         "filename": basename,
                         "results": response.get("results", []),
                         "docking": response.get("docking"),
+                        "ligand": response.get("ligand"),
+                        "prediction_scope": response.get("prediction_scope"),
                     })
                 else:
                     items.append({
