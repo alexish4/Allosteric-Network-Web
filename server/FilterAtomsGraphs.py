@@ -182,8 +182,49 @@ def min_max_normalization(matrix):
     return normalized_matrix
 
 
-def create_graphs(files, dataset_name, radius=5.0):
+def _normalized_ligand_sites(ligand_sites):
+    if ligand_sites is None:
+        return None
+    normalized = set()
+    for residue_name, residue_number, chain_id in ligand_sites:
+        normalized.add(
+            (
+                str(residue_name).strip().upper(),
+                int(residue_number),
+                str(chain_id).strip(),
+            )
+        )
+    return normalized
+
+
+def _site_tag(residue_name, residue_number, chain_id):
+    residue_name = re.sub(r"[^A-Za-z0-9]", "", str(residue_name).upper()) or "LIG"
+    chain_id = str(chain_id).strip()
+    chain_token = chain_id if len(chain_id) == 1 and chain_id.isalnum() else "BLANK"
+    return f"SITE_{residue_name}_{int(residue_number)}_{chain_token}"
+
+
+def create_graphs(
+    files,
+    dataset_name,
+    radius=5.0,
+    ligand_residue_names=None,
+    ligand_sites=None,
+):
+    """Create one protein-site graph per selected ligand residue.
+
+    ``ligand_residue_names`` selects all matching HETATM residue names.  For a
+    user-supplied SMILES ligand, ``ligand_sites`` can instead identify only the
+    collision-free poses appended during that request as
+    ``(residue_name, residue_number, chain_id)`` tuples.
+    """
     max_atoms = 150
+    if ligand_residue_names is None:
+        ligand_residue_names = {"CLR", "CHL"}
+    ligand_residue_names = {
+        str(name).strip().upper() for name in ligand_residue_names if str(name).strip()
+    }
+    selected_sites = _normalized_ligand_sites(ligand_sites)
 
     # Output dirs
     graphs_out_dir = os.path.join(dataset_name, f"{dataset_name}-graphs-5A")          # for gat/gcn
@@ -203,46 +244,89 @@ def create_graphs(files, dataset_name, radius=5.0):
         protein = ppdb.df['ATOM']
         protein = protein[~protein['atom_name'].str.startswith('H')]
 
-        # Ligand HETATM records for CLR
+        # Ligand HETATM records selected by residue name or exact appended-site ID.
         het = ppdb.df.get('HETATM', pd.DataFrame())
         if het.empty:
             print(f"[SKIP] No HETATM in {file}")
             continue
 
-        ligand = het[het['residue_name'] == "CLR"]
+        het = het.copy()
+        het['_normalized_residue_name'] = (
+            het['residue_name'].fillna('').astype(str).str.strip().str.upper()
+        )
+        het['_normalized_chain_id'] = (
+            het['chain_id'].fillna('').astype(str).str.strip()
+        )
+
+        if selected_sites is None:
+            ligand = het[
+                het['_normalized_residue_name'].isin(ligand_residue_names)
+            ]
+        else:
+            site_keys = list(
+                zip(
+                    het['_normalized_residue_name'],
+                    het['residue_number'].astype(int),
+                    het['_normalized_chain_id'],
+                )
+            )
+            ligand = het.loc[
+                [site_key in selected_sites for site_key in site_keys]
+            ]
+
         if ligand.empty:
-            print(f"[SKIP] No CLR in {file}")
+            target = (
+                "requested ligand sites"
+                if selected_sites is not None
+                else sorted(ligand_residue_names)
+            )
+            print(f"[SKIP] No {target} in {file}")
             continue
 
-        # unique CLR identifiers: (residue_number, chain_id)
-        clr_ids = sorted(set(zip(ligand['residue_number'], ligand['chain_id'])),
-                         key=lambda t: (int(t[0]), str(t[1])))
+        # Unique ligand identifiers: (residue_name, residue_number, chain_id).
+        site_ids = sorted(
+            set(
+                zip(
+                    ligand['_normalized_residue_name'],
+                    ligand['residue_number'].astype(int),
+                    ligand['_normalized_chain_id'],
+                )
+            ),
+            key=lambda item: (int(item[1]), str(item[2]), str(item[0])),
+        )
 
         base_stem = os.path.splitext(os.path.basename(file))[0]  # e.g. 1ABC_mode_3...
         pdb_id = base_stem[:4].upper()
 
-        for residue_number, chain_id in clr_ids:
-            clr_atoms = ligand[
-                (ligand['residue_number'] == residue_number) &
-                (ligand['chain_id'] == chain_id)
+        for residue_name, residue_number, chain_id in site_ids:
+            ligand_atoms = ligand[
+                (ligand['_normalized_residue_name'] == residue_name) &
+                (ligand['residue_number'].astype(int) == int(residue_number)) &
+                (ligand['_normalized_chain_id'] == chain_id)
             ]
-            if clr_atoms.empty:
+            if ligand_atoms.empty:
                 continue
 
-            # Filter protein around THIS CLR
-            grid_list_ = grid_list(clr_atoms)
+            # Filter protein around this exact ligand pose.
+            grid_list_ = grid_list(ligand_atoms)
             filtered_atoms = filtering_proteins(protein, grid_list_, radius=radius)
 
             if filtered_atoms.empty:
-                print(f"[SKIP] {file} CLR {residue_number}{chain_id}: no atoms within {radius}Å")
+                print(
+                    f"[SKIP] {file} {residue_name} {residue_number}{chain_id}: "
+                    f"no atoms within {radius}Å"
+                )
                 continue
 
-            # --- Save filtered PDB (per-CLR) ---
+            # --- Save filtered PDB (per ligand pose) ---
             filtered_pdb = PandasPdb()
             filtered_pdb.df['ATOM'] = filtered_atoms
 
-            clr_tag = f"CLR{residue_number}{chain_id}"
-            filtered_pdb_path = os.path.join(pdb_out_dir, f"{pdb_id}-{base_stem}_{clr_tag}-filtered.pdb")
+            site_tag = _site_tag(residue_name, residue_number, chain_id)
+            filtered_pdb_path = os.path.join(
+                pdb_out_dir,
+                f"{pdb_id}-{base_stem}_{site_tag}-filtered.pdb",
+            )
             filtered_pdb.to_pdb(path=filtered_pdb_path, records=None, gz=False, append_newline=True)
 
             # --- Build matrices from filtered pdb ---
@@ -252,7 +336,7 @@ def create_graphs(files, dataset_name, radius=5.0):
 
             num_atoms = inverse_distance.shape[0]
             if num_atoms > max_atoms:
-                print(f"[SKIP] {file} {clr_tag}: {num_atoms} atoms > limit {max_atoms}")
+                print(f"[SKIP] {file} {site_tag}: {num_atoms} atoms > limit {max_atoms}")
                 continue
 
             combined_matrix = inverse_distance @ encoded_matrix
@@ -263,15 +347,21 @@ def create_graphs(files, dataset_name, radius=5.0):
                 mode='constant'
             )
 
-            # --- Save GAT/GCN dict (per-CLR) ---
-            graphs_out_path = os.path.join(graphs_out_dir, f"{base_stem}_{clr_tag}_graphs.npy")
+            # --- Save GAT/GCN dict (per ligand pose) ---
+            graphs_out_path = os.path.join(
+                graphs_out_dir,
+                f"{base_stem}_{site_tag}_graphs.npy",
+            )
             np.save(graphs_out_path, {
                 'inverse_distance': inverse_distance,
                 'encoded_matrix': encoded_matrix
             })
 
-            # --- Save GNN combined matrix (per-CLR) ---
-            gnn_out_path = os.path.join(gnn_out_dir, f"{base_stem}_{clr_tag}_combined_matrix.npy")
+            # --- Save GNN combined matrix (per ligand pose) ---
+            gnn_out_path = os.path.join(
+                gnn_out_dir,
+                f"{base_stem}_{site_tag}_combined_matrix.npy",
+            )
             np.save(gnn_out_path, combined_matrix)
 
-            print(f"[OK] {pdb_id} {base_stem} {clr_tag} -> saved PDB + npy")
+            print(f"[OK] {pdb_id} {base_stem} {site_tag} -> saved PDB + npy")

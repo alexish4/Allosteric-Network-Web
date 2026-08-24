@@ -1,13 +1,13 @@
-"""Blind cholesterol docking and collision-free PDB assembly for CholBindNet.
+"""Blind SMILES ligand docking and collision-free PDB assembly for CholBindNet.
 
 The workflow follows the supplied AutoDock Vina notebook:
 
 1. prepare a heterogen-free receptor copy for Vina,
 2. prepare the receptor with ADFRsuite,
-3. generate a cholesterol conformer with RDKit and prepare it with Meeko,
+3. generate a ligand conformer from SMILES with RDKit and prepare it with Meeko,
 4. create a whole-protein docking box with 10 Angstrom padding,
-5. run Vina with exhaustiveness 16 and up to 100 modes, and
-6. append the docked poses as correctly formatted CLR residues to the untouched
+5. run Vina with exhaustiveness 64 and up to 100 modes, and
+6. append the docked poses as correctly formatted ligand residues to the untouched
    uploaded PDB, preserving every original experimental ligand and residue name.
 
 External tool paths can be configured with environment variables documented by
@@ -31,6 +31,8 @@ CHOLESTEROL_SMILES = (
     "C[C@H](CCCC(C)C)[C@H]1CC[C@@H]2[C@@]1(CC[C@H]3[C@H]2CC=C4"
     "[C@@]3(CC[C@@H](C4)O)C)C"
 )
+MAX_SMILES_LENGTH = 2000
+MAX_LIGAND_HEAVY_ATOMS = 128
 
 PROTEIN_RESIDUES = {
     "ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS",
@@ -47,6 +49,10 @@ VINA_RESULT_RE = re.compile(
 
 class DockingError(RuntimeError):
     """Raised when receptor preparation or docking cannot be completed."""
+
+
+class LigandInputError(DockingError):
+    """Raised when a submitted SMILES cannot define a dockable ligand."""
 
 
 def _env_int(name: str, default: int) -> int:
@@ -78,7 +84,7 @@ class DockingConfig:
     - ``ADFR_PREPARE_RECEPTOR``: ADFRsuite ``prepare_receptor`` executable.
     - ``MEEKO_PREPARE_LIGAND``: Meeko ``mk_prepare_ligand.py`` script.
     - ``VINA_BIN``: AutoDock Vina executable.
-    - ``CHOLNET_VINA_EXHAUSTIVENESS``: defaults to 16.
+    - ``CHOLNET_VINA_EXHAUSTIVENESS``: defaults to 64.
     - ``CHOLNET_VINA_NUM_MODES``: defaults to 100.
     - ``CHOLNET_VINA_PADDING``: whole-protein box padding; defaults to 10 A.
     - ``CHOLNET_VINA_TIMEOUT``: per-command timeout; defaults to 1800 seconds.
@@ -88,7 +94,7 @@ class DockingConfig:
     prepare_receptor: Optional[str] = None
     prepare_ligand: Optional[str] = None
     vina: Optional[str] = None
-    exhaustiveness: int = 16
+    exhaustiveness: int = 64
     num_modes: int = 100
     padding: float = 10.0
     timeout_seconds: int = 1800
@@ -108,7 +114,7 @@ class DockingConfig:
                 str(default_prepare_ligand) if default_prepare_ligand.exists() else None,
             ),
             vina=os.environ.get("VINA_BIN"),
-            exhaustiveness=_env_int("CHOLNET_VINA_EXHAUSTIVENESS", 16),
+            exhaustiveness=_env_int("CHOLNET_VINA_EXHAUSTIVENESS", 64),
             num_modes=_env_int("CHOLNET_VINA_NUM_MODES", 100),
             padding=_env_float("CHOLNET_VINA_PADDING", 10.0),
             timeout_seconds=_env_int("CHOLNET_VINA_TIMEOUT", 1800),
@@ -137,6 +143,7 @@ class AssignedPose:
     rank: int
     chain_id: str
     residue_number: int
+    residue_name: str
     atom_count: int
     affinity_kcal_mol: Optional[float] = None
 
@@ -145,6 +152,7 @@ class AssignedPose:
             "rank": self.rank,
             "chain_id": self.chain_id,
             "residue_number": self.residue_number,
+            "residue_name": self.residue_name,
             "atom_count": self.atom_count,
             "affinity_kcal_mol": self.affinity_kcal_mol,
         }
@@ -161,11 +169,19 @@ class DockingResult:
     center: tuple[float, float, float]
     size: tuple[float, float, float]
     config: DockingConfig
+    ligand_smiles: str
+    ligand_residue_name: str
+    ligand_heavy_atom_count: int
     warnings: tuple[str, ...] = ()
 
     def api_metadata(self) -> dict:
         return {
             "method": "AutoDock Vina blind docking",
+            "ligand": {
+                "smiles": self.ligand_smiles,
+                "residue_name": self.ligand_residue_name,
+                "heavy_atom_count": self.ligand_heavy_atom_count,
+            },
             "pose_count": len(self.assigned_poses),
             "box": {
                 "center": {
@@ -349,29 +365,77 @@ def blind_docking_box(
     return center, size
 
 
-def _write_cholesterol_sdf(path: str) -> None:
+def _normalize_residue_name(residue_name: str) -> str:
+    normalized = (residue_name or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{1,3}", normalized):
+        raise DockingError(
+            "The docked ligand residue name must contain 1-3 letters or digits."
+        )
+    return normalized
+
+
+def _write_ligand_sdf(path: str, smiles: str) -> tuple[str, int]:
     try:
         from rdkit import Chem
         from rdkit.Chem import AllChem
     except (ImportError, ModuleNotFoundError) as exc:
         raise DockingError(
-            "RDKit is required to generate the cholesterol ligand."
+            "RDKit is required to generate a ligand from SMILES."
         ) from exc
 
-    molecule = Chem.MolFromSmiles(CHOLESTEROL_SMILES)
+    smiles = (smiles or "").strip()
+    if not smiles:
+        raise LigandInputError("A non-empty ligand SMILES string is required.")
+    if len(smiles) > MAX_SMILES_LENGTH:
+        raise LigandInputError(
+            f"The ligand SMILES string exceeds the {MAX_SMILES_LENGTH}-character limit."
+        )
+
+    molecule = Chem.MolFromSmiles(smiles)
     if molecule is None:
-        raise DockingError("RDKit could not parse the cholesterol SMILES string.")
+        raise LigandInputError("RDKit could not parse the ligand SMILES string.")
+    if len(Chem.GetMolFrags(molecule)) != 1:
+        raise LigandInputError(
+            "The ligand SMILES must describe one connected molecule, not salts or fragments."
+        )
+
+    heavy_atom_count = int(molecule.GetNumHeavyAtoms())
+    if heavy_atom_count < 1:
+        raise LigandInputError("The ligand SMILES contains no heavy atoms.")
+    if heavy_atom_count > MAX_LIGAND_HEAVY_ATOMS:
+        raise LigandInputError(
+            "The ligand contains "
+            f"{heavy_atom_count} heavy atoms; the limit is {MAX_LIGAND_HEAVY_ATOMS}."
+        )
+
+    canonical_smiles = Chem.MolToSmiles(molecule, isomericSmiles=True)
     molecule = Chem.AddHs(molecule)
-    status = AllChem.EmbedMolecule(molecule, randomSeed=42)
+    try:
+        parameters = AllChem.ETKDGv3()
+    except AttributeError:
+        parameters = AllChem.ETKDG()
+    parameters.randomSeed = 42
+    parameters.useRandomCoords = True
+    status = AllChem.EmbedMolecule(molecule, parameters)
     if status != 0:
-        raise DockingError("RDKit could not generate a 3D cholesterol conformer.")
+        raise LigandInputError(
+            "RDKit could not generate a 3D conformer for this ligand."
+        )
+    try:
+        AllChem.UFFOptimizeMolecule(molecule, maxIters=500)
+    except Exception:
+        # Embedding is sufficient for Meeko/Vina; UFF support is not universal.
+        pass
+    molecule.SetProp("_Name", "SMILES ligand")
+    molecule.SetProp("SMILES", canonical_smiles)
     writer = Chem.SDWriter(path)
     try:
         writer.write(molecule)
     finally:
         writer.close()
     if not os.path.isfile(path) or os.path.getsize(path) == 0:
-        raise DockingError("RDKit did not create the cholesterol SDF file.")
+        raise DockingError("RDKit did not create the ligand SDF file.")
+    return canonical_smiles, heavy_atom_count
 
 
 def _element_from_pdbqt(line: str, atom_name: str) -> str:
@@ -549,13 +613,14 @@ def _format_pdb_atom(
     atom: PoseAtom,
     chain_id: str,
     residue_number: int,
+    residue_name: str,
 ) -> str:
     if not 1 <= serial <= 99999:
         raise DockingError(
             "Appending docked poses would exceed the PDB atom-serial limit of 99999."
         )
     return (
-        f"HETATM{serial:5d} {_format_atom_name(atom.name)} CLR {chain_id}"
+        f"HETATM{serial:5d} {_format_atom_name(atom.name)} {residue_name:>3} {chain_id}"
         f"{residue_number:4d}    {atom.x:8.3f}{atom.y:8.3f}{atom.z:8.3f}"
         f"{1.00:6.2f}{0.00:6.2f}          {atom.element:>2}  "
     )
@@ -567,8 +632,10 @@ def write_assigned_poses(
     *,
     receptor_pdb: Optional[str] = None,
     preferred_chain: str = "L",
+    residue_name: str = "CLR",
 ) -> tuple[AssignedPose, ...]:
-    """Write CLR poses with identifiers that cannot clash with the receptor."""
+    """Write ligand poses with identifiers that cannot clash with the receptor."""
+    residue_name = _normalize_residue_name(residue_name)
     maximum_serial, receptor_chains, used_residues = _receptor_identifiers(receptor_pdb)
     chain_id = _choose_chain(preferred_chain, receptor_chains)
     residue_numbers = _free_residue_numbers(chain_id, used_residues, len(poses))
@@ -579,7 +646,13 @@ def write_assigned_poses(
         for pose, residue_number in zip(poses, residue_numbers):
             for atom in pose.atoms:
                 handle.write(
-                    _format_pdb_atom(serial, atom, chain_id, residue_number) + "\n"
+                    _format_pdb_atom(
+                        serial,
+                        atom,
+                        chain_id,
+                        residue_number,
+                        residue_name,
+                    ) + "\n"
                 )
                 serial += 1
             handle.write("TER\n")
@@ -588,6 +661,7 @@ def write_assigned_poses(
                     rank=pose.rank,
                     chain_id=chain_id,
                     residue_number=residue_number,
+                    residue_name=residue_name,
                     atom_count=len(pose.atoms),
                     affinity_kcal_mol=pose.affinity_kcal_mol,
                 )
@@ -597,9 +671,13 @@ def write_assigned_poses(
 
 
 def append_poses_to_receptor(
-    source_pdb: str, poses_pdb: str, output_path: str
+    source_pdb: str,
+    poses_pdb: str,
+    output_path: str,
+    *,
+    ligand_residue_name: str = "CLR",
 ) -> None:
-    """Append docked CLR poses while preserving the uploaded PDB verbatim.
+    """Append docked ligand poses while preserving the uploaded PDB verbatim.
 
     ``source_pdb`` must be the original upload, not the heterogen-free receptor
     prepared for Vina.  New coordinate records are inserted before the PDB
@@ -638,7 +716,9 @@ def append_poses_to_receptor(
 
     output_records = [
         *before_footer,
-        "REMARK 900 DOCKED CLR POSES APPENDED; ORIGINAL HETATM NAMES PRESERVED",
+        "REMARK 900 DOCKED "
+        f"{_normalize_residue_name(ligand_residue_name)} POSES APPENDED; "
+        "ORIGINAL HETATM NAMES PRESERVED",
         "TER",
         *pose_records,
         *footer,
@@ -657,6 +737,7 @@ def normalize_pose_pdb(
     *,
     receptor_pdb: Optional[str] = None,
     preferred_chain: str = "L",
+    residue_name: str = "CLR",
 ) -> tuple[AssignedPose, ...]:
     """Correct an existing all_poses.pdb, including the supplied notebook output."""
     poses = read_pose_pdb(input_pose_pdb)
@@ -665,15 +746,18 @@ def normalize_pose_pdb(
         output_pose_pdb,
         receptor_pdb=receptor_pdb,
         preferred_chain=preferred_chain,
+        residue_name=residue_name,
     )
 
 
-def dock_cholesterol(
+def dock_ligand(
     receptor_pdb: str,
     workdir: str,
+    ligand_smiles: str,
     config: Optional[DockingConfig] = None,
+    ligand_residue_name: str = "LIG",
 ) -> DockingResult:
-    """Run blind cholesterol docking and return a prediction-ready complex PDB."""
+    """Run blind SMILES docking and return a prediction-ready complex PDB."""
     receptor_pdb = os.path.abspath(receptor_pdb)
     workdir = os.path.abspath(workdir)
     if not os.path.isfile(receptor_pdb):
@@ -682,12 +766,28 @@ def dock_cholesterol(
         raise DockingError("The uploaded receptor file is empty.")
 
     config = config or DockingConfig.from_environment()
+    ligand_residue_name = _normalize_residue_name(ligand_residue_name)
     if config.exhaustiveness < 1 or config.num_modes < 1:
         raise DockingError("Vina exhaustiveness and num_modes must both be positive.")
     if config.padding < 0 or config.timeout_seconds < 1:
         raise DockingError("Vina padding must be nonnegative and timeout must be positive.")
 
     os.makedirs(workdir, exist_ok=True)
+    cleaned_pdb = os.path.join(workdir, "receptor_clean.pdb")
+    receptor_pdbqt = os.path.join(workdir, "receptor.pdbqt")
+    ligand_sdf = os.path.join(workdir, "ligand.sdf")
+    ligand_pdbqt = os.path.join(workdir, "ligand.pdbqt")
+    vina_output = os.path.join(workdir, "vina_out.pdbqt")
+    vina_log = os.path.join(workdir, "vina_log.txt")
+    all_poses_pdb = os.path.join(workdir, "all_poses.pdb")
+    complex_pdb = os.path.join(workdir, "complex_all_poses.pdb")
+
+    # Validate and embed the user input before launching any external tools.
+    canonical_smiles, ligand_heavy_atom_count = _write_ligand_sdf(
+        ligand_sdf,
+        ligand_smiles,
+    )
+
     prepare_receptor = _resolve_executable(
         config.prepare_receptor,
         "prepare_receptor",
@@ -707,15 +807,6 @@ def dock_cholesterol(
         ),
     )
 
-    cleaned_pdb = os.path.join(workdir, "receptor_clean.pdb")
-    receptor_pdbqt = os.path.join(workdir, "receptor.pdbqt")
-    ligand_sdf = os.path.join(workdir, "CLR.sdf")
-    ligand_pdbqt = os.path.join(workdir, "CLR.pdbqt")
-    vina_output = os.path.join(workdir, "vina_out.pdbqt")
-    vina_log = os.path.join(workdir, "vina_log.txt")
-    all_poses_pdb = os.path.join(workdir, "all_poses.pdb")
-    complex_pdb = os.path.join(workdir, "complex_all_poses.pdb")
-
     warnings = list(clean_receptor(receptor_pdb, cleaned_pdb))
     _run_command(
         [
@@ -729,7 +820,6 @@ def dock_cholesterol(
         timeout_seconds=config.timeout_seconds,
     )
 
-    _write_cholesterol_sdf(ligand_sdf)
     ligand_command = [prepare_ligand, "-i", ligand_sdf, "-o", ligand_pdbqt]
     if prepare_ligand.lower().endswith(".py"):
         ligand_command.insert(0, sys.executable)
@@ -761,9 +851,10 @@ def dock_cholesterol(
     )
 
     poses = read_vina_poses(vina_output)
-    if any(len(pose.atoms) != 28 for pose in poses):
+    if any(len(pose.atoms) != ligand_heavy_atom_count for pose in poses):
         warnings.append(
-            "At least one docked pose did not contain the expected 28 cholesterol heavy atoms."
+            "At least one docked pose did not contain the expected "
+            f"{ligand_heavy_atom_count} ligand heavy atoms."
         )
     assigned = write_assigned_poses(
         poses,
@@ -773,10 +864,16 @@ def dock_cholesterol(
         # experimental ligand that was present in the uploaded structure.
         receptor_pdb=receptor_pdb,
         preferred_chain=config.preferred_chain,
+        residue_name=ligand_residue_name,
     )
     # Vina must use the cleaned receptor, but the prediction/display complex
     # must use the untouched upload so experimental ligands are not discarded.
-    append_poses_to_receptor(receptor_pdb, all_poses_pdb, complex_pdb)
+    append_poses_to_receptor(
+        receptor_pdb,
+        all_poses_pdb,
+        complex_pdb,
+        ligand_residue_name=ligand_residue_name,
+    )
 
     return DockingResult(
         complex_pdb=complex_pdb,
@@ -788,5 +885,23 @@ def dock_cholesterol(
         center=center,
         size=size,
         config=config,
+        ligand_smiles=canonical_smiles,
+        ligand_residue_name=ligand_residue_name,
+        ligand_heavy_atom_count=ligand_heavy_atom_count,
         warnings=tuple(warnings),
+    )
+
+
+def dock_cholesterol(
+    receptor_pdb: str,
+    workdir: str,
+    config: Optional[DockingConfig] = None,
+) -> DockingResult:
+    """Backward-compatible cholesterol docking wrapper."""
+    return dock_ligand(
+        receptor_pdb,
+        workdir,
+        CHOLESTEROL_SMILES,
+        config=config,
+        ligand_residue_name="CLR",
     )

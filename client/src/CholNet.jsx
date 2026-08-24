@@ -1,12 +1,32 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
+function getLigandSite(result) {
+  const residueName = String(
+    result?.ligand_residue_name || result?.docking_pose?.residue_name || "CLR"
+  ).toUpperCase();
+  const chain = String(result?.ligand_chain_id ?? result?.clr_chain_id ?? "");
+  const residueNumber = Number(
+    result?.ligand_residue_number ?? result?.clr_residue_number
+  );
+  return {
+    residueName,
+    chain,
+    residueNumber,
+    key: `${residueName}:${chain}:${residueNumber}`,
+    label: `${residueName} ${chain}${residueNumber}`,
+  };
+}
+
 export default function CholNet() {
   const [file, setFile] = useState(null);
   const [pdbText, setPdbText] = useState("");
   const [error, setError] = useState("");
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [smiles, setSmiles] = useState("");
+  const [ligandMetadata, setLigandMetadata] = useState(null);
+  const [predictionScope, setPredictionScope] = useState("");
 
   const [files, setFiles] = useState([]); // batch PDBs
   const [batchResults, setBatchResults] = useState(null);
@@ -96,9 +116,7 @@ export default function CholNet() {
     if (!selectedClr) return null;
     return (
       rankedResults.find(
-        (result) =>
-          `${result?.clr_chain_id ?? ""}${result?.clr_residue_number ?? ""}` ===
-          selectedClr.key
+        (result) => getLigandSite(result).key === selectedClr.key
       ) || null
     );
   }, [rankedResults, selectedClr]);
@@ -111,9 +129,15 @@ export default function CholNet() {
     if (!Array.isArray(results)) return {};
 
     const sorted = [...results].sort(
-      (a, b) =>
-        (a.clr_residue_number ?? 0) - (b.clr_residue_number ?? 0) ||
-        String(a.clr_chain_id ?? "").localeCompare(String(b.clr_chain_id ?? ""))
+        (a, b) => {
+          const siteA = getLigandSite(a);
+          const siteB = getLigandSite(b);
+          return (
+            siteA.residueNumber - siteB.residueNumber ||
+            siteA.chain.localeCompare(siteB.chain) ||
+            siteA.residueName.localeCompare(siteB.residueName)
+          );
+        }
     );
 
     const hslToHex = (h, s, l) => {
@@ -133,23 +157,23 @@ export default function CholNet() {
     const map = {};
     const n = Math.max(sorted.length, 1);
     sorted.forEach((r, i) => {
-      const chain = r?.clr_chain_id;
-      const resi = r?.clr_residue_number;
-      if (chain == null || resi == null) return;
+      const site = getLigandSite(r);
+      if (!Number.isFinite(site.residueNumber)) return;
       const hue = Math.round((i * 360) / n);
-      map[`${chain}${resi}`] = hslToHex(hue, 80, 45);
+      map[site.key] = hslToHex(hue, 80, 45);
     });
 
     return map;
   }, [results]);
 
   const chooseClr = (r) => {
-    const chain = String(r?.clr_chain_id ?? "");
-    const resi = Number(r?.clr_residue_number);
+    const site = getLigandSite(r);
+    const chain = site.chain;
+    const resi = site.residueNumber;
 
     if (!Number.isFinite(resi)) return;
 
-    const key = `${chain}${resi}`;
+    const key = site.key;
 
     // Clicking the selected CLR again clears the selection.
     if (selectedClr?.key === key) {
@@ -161,7 +185,13 @@ export default function CholNet() {
       modelOrder.find((modelName) => r?.[modelName]?.interpretation) ||
       modelOrder.find((modelName) => r?.[modelName]);
     setSelectedModel(firstAvailableModel || "GNN");
-    setSelectedClr({ chain, resi, key });
+    setSelectedClr({
+      chain,
+      resi,
+      resn: site.residueName,
+      label: site.label,
+      key,
+    });
   };
 
   // Load 3Dmol once
@@ -189,6 +219,8 @@ export default function CholNet() {
     setBatchInterpretation(null);
     setSelectedClr(null);
     setInterpretationSchemaVersion(null);
+    setLigandMetadata(null);
+    setPredictionScope("");
     setFiles([]); // leave batch mode
 
     setFile(f || null);
@@ -226,7 +258,7 @@ export default function CholNet() {
     viewer.setStyle({}, { cartoon: {} });
     // Keep all original non-water HETATM ligands visible. Their residue names
     // are preserved by the backend; green distinguishes them from evaluated
-    // CLR sites, which receive their own colors below.
+    // evaluated ligand sites, which receive their own colors below.
     viewer.setStyle(
       { hetflag: true },
       { stick: { colorscheme: "greenCarbon", radius: 0.18 } }
@@ -235,37 +267,41 @@ export default function CholNet() {
 
     if (Array.isArray(results) && results.length > 0) {
       for (const r of results) {
-        const chain = r?.clr_chain_id;
-        const resi = r?.clr_residue_number;
-        if (chain == null || resi == null) continue;
+        const site = getLigandSite(r);
+        if (!Number.isFinite(site.residueNumber)) continue;
 
-        const key = `${chain}${resi}`;
-        const color = clrColorMap[key];
+        const color = clrColorMap[site.key];
         if (!color) continue;
 
         viewer.setStyle(
-          { resn: "CLR", chain: String(chain), resi: Number(resi) },
+          {
+            resn: site.residueName,
+            chain: site.chain,
+            resi: site.residueNumber,
+          },
           { stick: { color, radius: 0.22 } }
         );
       }
     }
 
-    // When a CLR is selected from the table, dim only the evaluated CLR sites
-    // (not an unrelated experimental CLR) and strongly highlight the selected
-    // chain/residue combination.
+    // When a site is selected, dim only evaluated sites and strongly highlight
+    // that exact residue-name/chain/residue-number combination.
     if (selectedClr) {
       for (const r of results || []) {
-        const chain = r?.clr_chain_id;
-        const resi = Number(r?.clr_residue_number);
-        if (chain == null || !Number.isFinite(resi)) continue;
+        const site = getLigandSite(r);
+        if (!Number.isFinite(site.residueNumber)) continue;
         viewer.setStyle(
-          { resn: "CLR", chain: String(chain), resi },
+          {
+            resn: site.residueName,
+            chain: site.chain,
+            resi: site.residueNumber,
+          },
           { stick: { color: "#c7c7c7", radius: 0.14 } }
         );
       }
 
       const selectedClrSel = {
-        resn: "CLR",
+        resn: selectedClr.resn,
         chain: selectedClr.chain,
         resi: selectedClr.resi,
       };
@@ -343,9 +379,20 @@ export default function CholNet() {
       }
     );
 
-    const cholSel = { resn: ["CLR", "CHL"] };
+    const evaluatedLigandSelections = (results || [])
+      .map((result) => getLigandSite(result))
+      .filter((site) => Number.isFinite(site.residueNumber))
+      .map((site) => ({
+        resn: site.residueName,
+        chain: site.chain,
+        resi: site.residueNumber,
+      }));
+    const ligandSel =
+      evaluatedLigandSelections.length > 0
+        ? { or: evaluatedLigandSelections }
+        : { resn: ["CLR", "CHL"] };
     const nearProteinSel = {
-      and: [{ protein: true }, { within: { distance: 5.0, sel: cholSel } }],
+      and: [{ protein: true }, { within: { distance: 5.0, sel: ligandSel } }],
     };
 
     if (typeof viewer.addStyle === "function") {
@@ -359,7 +406,7 @@ export default function CholNet() {
 
     if (selectedClr) {
       viewer.zoomTo({
-        resn: "CLR",
+        resn: selectedClr.resn,
         chain: selectedClr.chain,
         resi: selectedClr.resi,
       });
@@ -406,9 +453,8 @@ export default function CholNet() {
         }));
 
       for (const r of ranked) {
-        const chain = r?.clr_chain_id ?? "";
-        const resi = r?.clr_residue_number ?? "";
-        const clr_id = `CLR ${chain}${resi}`;
+        const site = getLigandSite(r);
+        const ligand_id = site.label;
 
         const gnnScore = r?.GNN?.mean_score;
         const gatScore = r?.GAT?.mean_score;
@@ -417,7 +463,10 @@ export default function CholNet() {
         rows.push({
           filename: fname,
           rank: r.rank,
-          clr_id,
+          ligand_id,
+          ligand_smiles: item?.ligand?.smiles ?? "",
+          vina_affinity_kcal_mol:
+            r?.docking_pose?.affinity_kcal_mol ?? "",
           GNN: gnnScore ?? "",
           GNN_label: getScoreLabel("GNN", gnnScore),
           GAT: gatScore ?? "",
@@ -449,7 +498,9 @@ export default function CholNet() {
     const headers = [
       "filename",
       "rank",
-      "clr_id",
+      "ligand_id",
+      "ligand_smiles",
+      "vina_affinity_kcal_mol",
       "GNN",
       "GNN_label",
       "GAT",
@@ -477,7 +528,7 @@ export default function CholNet() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "cholnet_batch_results.csv";
+    a.download = "cholnet_ligand_batch_results.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -489,6 +540,8 @@ export default function CholNet() {
     setBatchInterpretation(null);
     setSelectedClr(null);
     setInterpretationSchemaVersion(null);
+    setLigandMetadata(null);
+    setPredictionScope("");
 
     if (!file || !file.name.toLowerCase().endsWith(".pdb")) {
       setError("Please choose a .pdb file.");
@@ -497,6 +550,7 @@ export default function CholNet() {
 
     const formData = new FormData();
     formData.append("pdb_file", file);
+    if (smiles.trim()) formData.append("smiles", smiles.trim());
 
     setIsLoading(true);
     try {
@@ -513,10 +567,12 @@ export default function CholNet() {
           res.data.structure_pdb.trim()
         ) {
           // Show the exact analyzed complex returned by the backend: the
-          // original uploaded structure plus newly docked CLR poses.
+          // original uploaded structure plus newly docked ligand poses.
           setPdbText(res.data.structure_pdb);
         }
         setResults(returnedResults);
+        setLigandMetadata(res.data.ligand || null);
+        setPredictionScope(res.data.prediction_scope || "");
         setInterpretationSchemaVersion(
           res.data.interpretation_schema_version ?? null
         );
@@ -525,14 +581,21 @@ export default function CholNet() {
           (a, b) => getGnnScore(b) - getGnnScore(a)
         )[0];
         if (highestRanked) {
-          const chain = String(highestRanked.clr_chain_id ?? "");
-          const resi = Number(highestRanked.clr_residue_number);
+          const site = getLigandSite(highestRanked);
+          const chain = site.chain;
+          const resi = site.residueNumber;
           const firstAvailableModel =
             modelOrder.find(
               (modelName) => highestRanked?.[modelName]?.interpretation
             ) || modelOrder.find((modelName) => highestRanked?.[modelName]);
           if (Number.isFinite(resi)) {
-            setSelectedClr({ chain, resi, key: `${chain}${resi}` });
+            setSelectedClr({
+              chain,
+              resi,
+              resn: site.residueName,
+              label: site.label,
+              key: site.key,
+            });
           }
           setSelectedModel(firstAvailableModel || "GNN");
         }
@@ -551,6 +614,8 @@ export default function CholNet() {
     setBatchInterpretation(null);
     setSelectedClr(null);
     setInterpretationSchemaVersion(null);
+    setLigandMetadata(null);
+    setPredictionScope("");
 
     if (!files || files.length === 0) {
       setError("Please select a folder (batch) with .pdb files.");
@@ -559,6 +624,7 @@ export default function CholNet() {
 
     const formData = new FormData();
     for (const f of files) formData.append("pdb_files", f);
+    if (smiles.trim()) formData.append("smiles", smiles.trim());
 
     setIsLoading(true);
     try {
@@ -569,6 +635,10 @@ export default function CholNet() {
       if (res.data?.status === "success") {
         setBatchResults(res.data.items);
         setBatchInterpretation(res.data.interpretation_summary || null);
+        setLigandMetadata(res.data.items?.find((item) => item?.ligand)?.ligand || null);
+        setPredictionScope(
+          res.data.items?.find((item) => item?.prediction_scope)?.prediction_scope || ""
+        );
       } else setError(res.data?.message || "Batch processing error.");
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || "Batch request failed.");
@@ -619,8 +689,9 @@ export default function CholNet() {
 
       <div style={styles.uploadSection}>
         <div style={styles.description}>
-          Upload a PDB file containing both protein and docked cholesterol molecules.
-          CholBindNet will provide a confidence ranking.
+          Upload a protein PDB and optionally enter one connected-molecule SMILES
+          string. The server will blind-dock that ligand, append the poses, and rank
+          their surrounding protein sites. Leave SMILES blank to dock cholesterol.
         </div>
 
         <div style={styles.uploadControls}>
@@ -629,6 +700,27 @@ export default function CholNet() {
               Download example PDB
             </a>
             <span style={styles.exampleHint}>(Use this to test the interface.)</span>
+          </div>
+
+          <div style={styles.smilesRow}>
+            <label htmlFor="ligand_smiles" style={styles.label}>
+              Ligand SMILES:
+            </label>
+            <textarea
+              id="ligand_smiles"
+              value={smiles}
+              maxLength={2000}
+              rows={2}
+              onChange={(event) => setSmiles(event.target.value)}
+              placeholder="Optional — blank uses cholesterol"
+              disabled={isLoading}
+              spellCheck={false}
+              style={styles.smilesInput}
+            />
+            <span style={styles.smilesHint}>
+              {smiles.length}/2000 characters · same ligand is used for every PDB
+              in batch mode
+            </span>
           </div>
 
           {/* ---------- Single mode ---------- */}
@@ -674,6 +766,8 @@ export default function CholNet() {
                 setBatchInterpretation(null);
                 setSelectedClr(null);
                 setInterpretationSchemaVersion(null);
+                setLigandMetadata(null);
+                setPredictionScope("");
 
                 const picked = Array.from(e.target.files || []).filter((f) =>
                   f.name.toLowerCase().endsWith(".pdb")
@@ -707,6 +801,8 @@ export default function CholNet() {
                     setBatchInterpretation(null);
                     setSelectedClr(null);
                     setInterpretationSchemaVersion(null);
+                    setLigandMetadata(null);
+                    setPredictionScope("");
                   }}
                 >
                   Clear
@@ -717,9 +813,17 @@ export default function CholNet() {
 
           {!isBatchMode && (
             <div style={styles.viewerNote}>
-              Viewer: protein shown as cartoon, cholesterol (<code>CLR</code>) shown as bonds/sticks.
+              Viewer: protein shown as cartoon; evaluated ligand poses are shown as
+              colored sticks.
             </div>
           )}
+
+          <div style={styles.scopeNote}>
+            Vina affinity estimates docking favorability. CholBindNet scores the
+            nearby protein environment; for non-cholesterol ligands, that score is
+            an extrapolation from cholesterol-site training and is not a binding
+            affinity prediction.
+          </div>
         </div>
       </div>
 
@@ -745,23 +849,40 @@ export default function CholNet() {
       {Array.isArray(results) && (
         <div style={styles.resultsSection}>
           <div style={styles.resultsHeader}>
-            <h2 style={{ margin: 0 }}>Results (CLR ligands)</h2>
+            <h2 style={{ margin: 0 }}>Results (docked ligand poses)</h2>
 
             {selectedClr && (
               <div style={styles.selectedClrControls}>
                 <span>
-                  Highlighting <strong>CLR {selectedClr.key}</strong>
+                  Highlighting <strong>{selectedClr.label}</strong>
                 </span>
                 <button
                   type="button"
                   style={{ ...styles.button, padding: "6px 10px" }}
                   onClick={() => setSelectedClr(null)}
                 >
-                  Show all CLRs
+                  Show all poses
                 </button>
               </div>
             )}
           </div>
+
+          {ligandMetadata && (
+            <div style={styles.ligandMetadata}>
+              <strong>Docked ligand:</strong>{" "}
+              <code style={styles.smilesCode}>{ligandMetadata.smiles}</code>
+              {Number.isFinite(Number(ligandMetadata.heavy_atom_count)) && (
+                <span>
+                  {" "}· {Number(ligandMetadata.heavy_atom_count)} heavy atoms · PDB
+                  residue name <code>{ligandMetadata.residue_name}</code>
+                </span>
+              )}
+            </div>
+          )}
+
+          {predictionScope && (
+            <div style={styles.scopeNote}>{predictionScope}</div>
+          )}
 
           <div style={styles.thresholdLegend}>
             <div style={styles.thresholdTitle}>
@@ -813,7 +934,8 @@ export default function CholNet() {
               <thead>
                 <tr>
                   <th style={styles.th}>Rank</th>
-                  <th style={styles.th}>CLR ID</th>
+                  <th style={styles.th}>Ligand pose</th>
+                  <th style={styles.th}>Vina affinity</th>
                   {modelOrder.map((m) => (
                     <th key={m} style={styles.th}>
                       {m}
@@ -824,7 +946,8 @@ export default function CholNet() {
 
               <tbody>
                 {rankedResults.map((r, idx) => {
-                  const clrKey = `${r.clr_chain_id}${r.clr_residue_number}`;
+                  const site = getLigandSite(r);
+                  const clrKey = site.key;
                   const clrColor = clrColorMap[clrKey] || "gold";
 
                   const isSelected = selectedClr?.key === clrKey;
@@ -842,7 +965,7 @@ export default function CholNet() {
                       role="button"
                       tabIndex={0}
                       aria-pressed={isSelected}
-                      title={`Highlight CLR ${clrKey} in the 3D viewer`}
+                      title={`Highlight ${site.label} in the 3D viewer`}
                       style={{
                         cursor: "pointer",
                         background: isSelected ? "#fff1ff" : "white",
@@ -856,7 +979,7 @@ export default function CholNet() {
 
                       <td style={styles.td}>
                         <span
-                          title={`Color for CLR ${clrKey}`}
+                          title={`Color for ${site.label}`}
                           style={{
                             display: "inline-block",
                             width: 12,
@@ -874,7 +997,7 @@ export default function CholNet() {
                             textDecoration: isSelected ? "underline" : "none",
                           }}
                         >
-                          CLR {clrKey}
+                          {site.label}
                         </strong>
                         <span
                           style={{
@@ -901,6 +1024,15 @@ export default function CholNet() {
                         {isSelected && (
                           <span style={styles.selectedBadge}>Selected</span>
                         )}
+                      </td>
+
+                      <td style={styles.td}>
+                        {r?.docking_pose?.affinity_kcal_mol != null &&
+                        Number.isFinite(Number(r.docking_pose.affinity_kcal_mol))
+                          ? `${Number(
+                              r.docking_pose.affinity_kcal_mol
+                            ).toFixed(2)} kcal/mol`
+                          : "—"}
                       </td>
 
                       {modelOrder.map((modelName) => {
@@ -946,7 +1078,7 @@ export default function CholNet() {
               <div>
                 <h3 style={{ margin: 0 }}>Important residues and atoms</h3>
                 <div style={styles.interpretationSubtitle}>
-                  Select a CLR site, then choose an architecture to update the
+                  Select a ligand pose, then choose an architecture to update the
                   structure highlighting.
                 </div>
               </div>
@@ -998,7 +1130,7 @@ export default function CholNet() {
 
             {!selectedResult && (
               <div style={styles.emptyInterpretation}>
-                Click a CLR row above to view its model interpretation and exact
+                Click a ligand-pose row above to view its model interpretation and exact
                 PDB atom/residue IDs.
               </div>
             )}
@@ -1142,11 +1274,10 @@ export default function CholNet() {
           </div>
 
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
-            Tip: click any evaluated CLR row to highlight and zoom to that exact CLR
-            chain/residue ID. Orange marks important residues and red marks exact
-            important atoms for the selected architecture. Green sticks are
-            retained non-water experimental ligands that are not styled as an
-            evaluated CLR site.
+            Tip: click any evaluated pose to highlight and zoom to its exact
+            residue-name/chain/residue ID. Orange marks important residues and red
+            marks exact important atoms for the selected architecture. Green sticks
+            are retained non-water experimental ligands that are not evaluated poses.
           </div>
         </div>
       )}
@@ -1159,10 +1290,28 @@ export default function CholNet() {
             Download CSV
           </button>
 
+          {ligandMetadata && (
+            <div style={styles.ligandMetadata}>
+              <strong>Docked ligand:</strong>{" "}
+              <code style={styles.smilesCode}>{ligandMetadata.smiles}</code>
+              {Number.isFinite(Number(ligandMetadata.heavy_atom_count)) && (
+                <span>
+                  {" "}· {Number(ligandMetadata.heavy_atom_count)} heavy atoms · PDB
+                  residue name <code>{ligandMetadata.residue_name}</code>
+                </span>
+              )}
+            </div>
+          )}
+
+          {predictionScope && (
+            <div style={styles.scopeNote}>{predictionScope}</div>
+          )}
+
           <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
-            CSV contains one row per CLR per PDB file, including rank and the
-            percentile-based label for every model score. Batch interpretations
-            are aggregated by residue and atom type, without structure-specific IDs.
+            CSV contains one row per ligand pose per PDB file, including its Vina
+            affinity, rank, and percentile-based label for every model score. Batch
+            interpretations are aggregated by residue and atom type, without
+            structure-specific IDs.
           </div>
 
           {batchInterpretation?.models && (
@@ -1276,6 +1425,52 @@ const styles = {
   },
   label: { fontWeight: 700, fontSize: 18 },
   fileInput: { fontSize: 16 },
+  smilesRow: {
+    display: "grid",
+    gridTemplateColumns: "auto minmax(280px, 1fr)",
+    alignItems: "center",
+    gap: "7px 12px",
+    width: "min(100%, 980px)",
+  },
+  smilesInput: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "9px 11px",
+    border: "1px solid #bbb",
+    borderRadius: 8,
+    resize: "vertical",
+    fontFamily: "monospace",
+    fontSize: 14,
+  },
+  smilesHint: {
+    gridColumn: "2",
+    color: "#666",
+    fontSize: 12,
+  },
+  smilesCode: {
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  },
+  scopeNote: {
+    width: "min(100%, 980px)",
+    boxSizing: "border-box",
+    marginTop: 10,
+    padding: "10px 12px",
+    border: "1px solid #c7d7ee",
+    borderRadius: 8,
+    background: "#f3f7fd",
+    color: "#34495e",
+    fontSize: 13,
+  },
+  ligandMetadata: {
+    marginTop: 12,
+    padding: "10px 12px",
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    background: "white",
+    fontSize: 13,
+    overflowWrap: "anywhere",
+  },
   error: {
     color: "red",
     background: "#ffe6e6",

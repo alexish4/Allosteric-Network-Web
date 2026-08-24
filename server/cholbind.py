@@ -16,7 +16,13 @@ from torch_geometric.nn import GATConv, GCNConv, global_mean_pool
 
 # Custom preprocessing used by the existing website.
 from FilterAtomsGraphs import create_graphs
-from vina_docking import DockingConfig, DockingError, dock_cholesterol
+from vina_docking import (
+    CHOLESTEROL_SMILES,
+    DockingConfig,
+    DockingError,
+    LigandInputError,
+    dock_ligand,
+)
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,15 +40,30 @@ PROTEIN_RESIDUES = {
     "ASX", "GLX", "SEC", "PYL", "MSE",
 }
 
-_CLR_TAG_RE = re.compile(r"_CLR(-?\d+)([A-Za-z0-9])(?=[_-])")
+_SITE_TAG_RE = re.compile(
+    r"_SITE_([A-Za-z0-9]{1,3})_(-?\d+)_([A-Za-z0-9]+)(?=[_-])"
+)
+_LEGACY_CLR_TAG_RE = re.compile(r"_CLR(-?\d+)([A-Za-z0-9])(?=[_-])")
+
+
+def parse_site_from_path(path):
+    """Extract ``(residue_name, residue_number, chain_id)`` from a site file."""
+    basename = os.path.basename(path)
+    match = _SITE_TAG_RE.search(basename)
+    if match:
+        chain_id = "" if match.group(3).upper() == "BLANK" else match.group(3)
+        return match.group(1).upper(), int(match.group(2)), chain_id
+
+    legacy = _LEGACY_CLR_TAG_RE.search(basename)
+    if legacy:
+        return "CLR", int(legacy.group(1)), legacy.group(2)
+    return None
 
 
 def parse_clr_from_path(path):
-    """Extract ``(residue_number, chain_id)`` from a generated site filename."""
-    match = _CLR_TAG_RE.search(os.path.basename(path))
-    if not match:
-        return None
-    return int(match.group(1)), match.group(2)
+    """Backward-compatible two-field parser for older callers."""
+    site = parse_site_from_path(path)
+    return (site[1], site[2]) if site else None
 
 
 def robust_rmtree(path, retries=5, delay=0.2):
@@ -261,7 +282,7 @@ def _atom_type_match_fraction(atoms, encoded_matrix):
     return matches / comparable if comparable else 1.0
 
 
-def _site_atom_candidates(pdb_path, clr_key, cutoff=5.0):
+def _site_atom_candidates(pdb_path, site_key, cutoff=5.0):
     atoms = _parse_pdb_atoms(pdb_path)
     protein = [
         atom
@@ -270,13 +291,13 @@ def _site_atom_candidates(pdb_path, clr_key, cutoff=5.0):
         and (atom["record"] == "ATOM" or atom["residue_name"] in PROTEIN_RESIDUES)
     ]
 
-    residue_number, chain_id = clr_key
+    residue_name, residue_number, chain_id = site_key
     ligand = [
         atom
         for atom in atoms
         if atom["residue_number"] == residue_number
         and atom["chain_id"] == chain_id
-        and atom["residue_name"] in {"CLR", "CHL"}
+        and atom["residue_name"] == residue_name
         and atom["element"] != "H"
     ]
     if not ligand:
@@ -309,7 +330,7 @@ def _site_atom_candidates(pdb_path, clr_key, cutoff=5.0):
 
 def _map_graph_nodes_to_pdb(
     original_pdb_path,
-    clr_key,
+    site_key,
     encoded_matrix,
     generated_pdb_paths=None,
 ):
@@ -322,12 +343,12 @@ def _map_graph_nodes_to_pdb(
     expected_count = int(encoded_matrix.shape[0])
     candidates = []
 
-    for label, atoms in _site_atom_candidates(original_pdb_path, clr_key):
+    for label, atoms in _site_atom_candidates(original_pdb_path, site_key):
         candidates.append((label, atoms))
 
     for generated_path in generated_pdb_paths or []:
-        tagged_clr = parse_clr_from_path(generated_path)
-        if tagged_clr is not None and tagged_clr != clr_key:
+        tagged_site = parse_site_from_path(generated_path)
+        if tagged_site is not None and tagged_site != site_key:
             continue
         parsed = _parse_pdb_atoms(generated_path)
         generated_protein = [
@@ -719,13 +740,27 @@ class CholNetBackend:
             all_experiments.append(exp_models)
         return all_experiments
 
-    def predict(self, pdb_file_path, include_interpretation_ids=True):
+    def predict(
+        self,
+        pdb_file_path,
+        include_interpretation_ids=True,
+        ligand_smiles=None,
+    ):
         # Shared model objects receive gradients during interpretation. Serializing
         # requests prevents hooks/gradients from different Flask workers from mixing.
         with self._inference_lock:
-            return self._predict_locked(pdb_file_path, include_interpretation_ids)
+            return self._predict_locked(
+                pdb_file_path,
+                include_interpretation_ids,
+                ligand_smiles,
+            )
 
-    def _predict_locked(self, pdb_file_path, include_interpretation_ids):
+    def _predict_locked(
+        self,
+        pdb_file_path,
+        include_interpretation_ids,
+        ligand_smiles,
+    ):
         if not os.path.exists(pdb_file_path):
             return {"status": "error", "message": "File not found"}
 
@@ -736,27 +771,53 @@ class CholNetBackend:
         try:
             prediction_pdb_path = pdb_file_path
             docking_metadata = None
-            docking_pose_by_clr = {}
+            docking_pose_by_site = {}
+            submitted_smiles = (ligand_smiles or "").strip()
+            custom_ligand = bool(submitted_smiles)
+            selected_smiles = submitted_smiles or CHOLESTEROL_SMILES
+            ligand_residue_name = "LIG" if custom_ligand else "CLR"
+
+            if custom_ligand and not self.enable_vina_docking:
+                return {
+                    "status": "error",
+                    "message": "A SMILES ligand requires Vina docking to be enabled.",
+                }
 
             if self.enable_vina_docking:
-                docking_result = dock_cholesterol(
+                docking_result = dock_ligand(
                     pdb_file_path,
                     os.path.join(session_output_dir, "docking"),
+                    selected_smiles,
                     config=self.docking_config,
+                    ligand_residue_name=ligand_residue_name,
                 )
                 prediction_pdb_path = docking_result.complex_pdb
                 docking_metadata = docking_result.api_metadata()
-                docking_pose_by_clr = {
-                    (pose.residue_number, pose.chain_id): pose.as_dict()
+                docking_pose_by_site = {
+                    (pose.residue_name, pose.residue_number, pose.chain_id): pose.as_dict()
                     for pose in docking_result.assigned_poses
                 }
 
             preprocessing_dir = os.path.join(session_output_dir, "preprocessing")
             os.makedirs(preprocessing_dir, exist_ok=True)
-            create_graphs([prediction_pdb_path], preprocessing_dir)
+            if custom_ligand:
+                # Only evaluate the exact poses appended for this SMILES request;
+                # do not accidentally treat unrelated pre-existing LIG residues
+                # in the uploaded PDB as the submitted molecule.
+                create_graphs(
+                    [prediction_pdb_path],
+                    preprocessing_dir,
+                    ligand_sites=set(docking_pose_by_site),
+                )
+            else:
+                create_graphs(
+                    [prediction_pdb_path],
+                    preprocessing_dir,
+                    ligand_residue_names={"CLR", "CHL"},
+                )
 
-            graph_by_clr = {}
-            matrix_by_clr = {}
+            graph_by_site = {}
+            matrix_by_site = {}
             generated_pdb_paths = []
             for root, _, files in os.walk(preprocessing_dir):
                 for filename in files:
@@ -764,34 +825,35 @@ class CholNetBackend:
                     if filename.lower().endswith(".pdb"):
                         generated_pdb_paths.append(full_path)
                     if filename.endswith("_graphs.npy"):
-                        clr_key = parse_clr_from_path(full_path)
-                        if clr_key:
-                            graph_by_clr[clr_key] = full_path
+                        site_key = parse_site_from_path(full_path)
+                        if site_key:
+                            graph_by_site[site_key] = full_path
                     elif filename.endswith("_combined_matrix.npy"):
-                        clr_key = parse_clr_from_path(full_path)
-                        if clr_key:
-                            matrix_by_clr[clr_key] = full_path
+                        site_key = parse_site_from_path(full_path)
+                        if site_key:
+                            matrix_by_site[site_key] = full_path
 
-            clr_keys = sorted(
-                set(graph_by_clr) | set(matrix_by_clr),
-                key=lambda key: (key[0], key[1]),
+            site_keys = sorted(
+                set(graph_by_site) | set(matrix_by_site),
+                key=lambda key: (key[1], key[2], key[0]),
             )
-            if not clr_keys:
+            if not site_keys:
                 return {
                     "status": "error",
                     "message": "Preprocessing failed. No graph files were generated. "
                     + (
                         "No protein atoms were found within 5 Angstrom of any "
-                        "docked cholesterol pose."
+                        "docked ligand pose."
                         if self.enable_vina_docking
-                        else "Ensure a correctly formatted CLR ligand is present."
+                        else "Ensure a correctly formatted ligand is present."
                     ),
                 }
 
             results = []
-            for clr_key in clr_keys:
-                graph_path = graph_by_clr.get(clr_key)
-                matrix_path = matrix_by_clr.get(clr_key)
+            for site_key in site_keys:
+                residue_name, residue_number, chain_id = site_key
+                graph_path = graph_by_site.get(site_key)
+                matrix_path = matrix_by_site.get(site_key)
                 encoded_matrix = None
                 atom_metadata = None
                 mapping_warning = "Graph data was unavailable for PDB atom mapping."
@@ -801,18 +863,24 @@ class CholNetBackend:
                     encoded_matrix = np.asarray(payload["encoded_matrix"], dtype=np.float32)
                     atom_metadata, mapping_warning = _map_graph_nodes_to_pdb(
                         original_pdb_path=prediction_pdb_path,
-                        clr_key=clr_key,
+                        site_key=site_key,
                         encoded_matrix=encoded_matrix,
                         generated_pdb_paths=generated_pdb_paths,
                     )
 
                 bucket = {
                     "filename": os.path.basename(pdb_file_path),
-                    "clr_residue_number": clr_key[0],
-                    "clr_chain_id": clr_key[1],
+                    "ligand_residue_name": residue_name,
+                    "ligand_residue_number": residue_number,
+                    "ligand_chain_id": chain_id,
+                    "ligand_id": f"{residue_name} {chain_id}{residue_number}",
+                    # Retain the old field names while the deployed frontend and
+                    # downstream CSV consumers transition to generic ligand IDs.
+                    "clr_residue_number": residue_number,
+                    "clr_chain_id": chain_id,
                     "site_source": (
                         "vina_docked"
-                        if clr_key in docking_pose_by_clr
+                        if site_key in docking_pose_by_site
                         else (
                             "uploaded_experimental"
                             if self.enable_vina_docking
@@ -823,8 +891,8 @@ class CholNetBackend:
                     "GCN": None,
                     "GNN": None,
                 }
-                if clr_key in docking_pose_by_clr:
-                    bucket["docking_pose"] = docking_pose_by_clr[clr_key]
+                if site_key in docking_pose_by_site:
+                    bucket["docking_pose"] = docking_pose_by_site[site_key]
 
                 if graph_path and encoded_matrix is not None:
                     bucket["GAT"] = self._evaluate_gat(
@@ -878,13 +946,19 @@ class CholNetBackend:
                 "status": "success",
                 "interpretation_schema_version": 1,
                 "docking": docking_metadata,
+                "ligand": docking_metadata.get("ligand") if docking_metadata else None,
+                "prediction_scope": (
+                    "CholBindNet scores the protein environment around each pose. "
+                    "For non-cholesterol ligands, scores are extrapolations from a "
+                    "model trained on cholesterol-binding sites, not binding affinities."
+                ),
                 "results": results,
             }
             if include_interpretation_ids:
                 # The single-file viewer needs the exact structure used for
                 # prediction.  With Vina enabled, this is the untouched upload
                 # (including its original HETATM ligands and residue names) plus
-                # the newly docked CLR poses.
+                # the newly docked ligand poses.
                 with open(
                     prediction_pdb_path,
                     "r",
@@ -893,12 +967,18 @@ class CholNetBackend:
                 ) as handle:
                     response["structure_pdb"] = handle.read()
                 response["structure_source"] = (
-                    "uploaded_with_vina_clr_poses"
+                    "uploaded_with_vina_ligand_poses"
                     if self.enable_vina_docking
                     else "uploaded"
                 )
             return response
 
+        except LigandInputError as exc:
+            return {
+                "status": "error",
+                "error_code": "invalid_ligand",
+                "message": str(exc),
+            }
         except DockingError as exc:
             return {"status": "error", "message": f"Vina docking failed: {exc}"}
         except Exception as exc:
