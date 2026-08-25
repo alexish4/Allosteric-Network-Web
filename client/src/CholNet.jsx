@@ -28,6 +28,183 @@ function getInteractionResidueLabel(atom) {
     : String(atom.residue_name);
 }
 
+function getViewerResidueLookupKey(atom, includeInsertionCode = true) {
+  const residueName = String(atom?.residue_name ?? atom?.resn ?? "").toUpperCase();
+  const chain = String(atom?.chain_id ?? atom?.chain ?? "");
+  const residueNumber = String(atom?.residue_number ?? atom?.resi ?? "");
+  const insertionCode = includeInsertionCode
+    ? String(atom?.insertion_code ?? atom?.icode ?? atom?.inscode ?? "")
+    : "";
+  return `${chain}|${residueNumber}|${insertionCode}|${residueName}`;
+}
+
+function buildViewerHoverLookup(interpretation, interactions) {
+  const residuesByKey = new Map();
+  const atomsBySerial = new Map();
+  const interactionsBySerial = new Map();
+  const interactionsByResidue = new Map();
+
+  const addByResidue = (target, residue, value) => {
+    for (const key of new Set([
+      getViewerResidueLookupKey(residue),
+      getViewerResidueLookupKey(residue, false),
+    ])) {
+      const existing = target.get(key) || [];
+      if (!existing.includes(value)) existing.push(value);
+      target.set(key, existing);
+    }
+  };
+
+  for (const residue of interpretation?.top_residues || []) {
+    for (const key of new Set([
+      getViewerResidueLookupKey(residue),
+      getViewerResidueLookupKey(residue, false),
+    ])) {
+      if (!residuesByKey.has(key)) residuesByKey.set(key, residue);
+    }
+  }
+
+  for (const atom of interpretation?.top_atoms || []) {
+    const serial = Number(atom?.atom_serial);
+    if (Number.isFinite(serial)) atomsBySerial.set(serial, atom);
+  }
+
+  for (const interaction of interactions || []) {
+    for (const [endpoint, partner] of [
+      [interaction.source, interaction.target],
+      [interaction.target, interaction.source],
+    ]) {
+      if (!endpoint || !partner) continue;
+      const record = { interaction, endpoint, partner };
+      const serial = Number(endpoint.atom_serial);
+      if (Number.isFinite(serial)) {
+        const existing = interactionsBySerial.get(serial) || [];
+        existing.push(record);
+        interactionsBySerial.set(serial, existing);
+      }
+      addByResidue(interactionsByResidue, endpoint, record);
+    }
+  }
+
+  return {
+    residuesByKey,
+    atomsBySerial,
+    interactionsBySerial,
+    interactionsByResidue,
+  };
+}
+
+function buildAtomHoverInformation(atom, modelName, lookup) {
+  const serial = Number(atom?.serial ?? atom?.atom_serial);
+  const exactKey = getViewerResidueLookupKey(atom);
+  const fallbackKey = getViewerResidueLookupKey(atom, false);
+  const importantResidue =
+    lookup.residuesByKey.get(exactKey) || lookup.residuesByKey.get(fallbackKey);
+  const importantAtom = Number.isFinite(serial)
+    ? lookup.atomsBySerial.get(serial)
+    : null;
+  const exactConnections = Number.isFinite(serial)
+    ? lookup.interactionsBySerial.get(serial) || []
+    : [];
+  const residueConnections =
+    lookup.interactionsByResidue.get(exactKey) ||
+    lookup.interactionsByResidue.get(fallbackKey) ||
+    [];
+  const connectionRecords =
+    exactConnections.length > 0 ? exactConnections : residueConnections;
+  const residueName = String(atom?.resn ?? importantResidue?.residue_name ?? "");
+  const chain = String(atom?.chain ?? importantResidue?.chain_id ?? "");
+  const residueNumber = String(
+    atom?.resi ?? importantResidue?.residue_number ?? ""
+  );
+  const insertionCode = String(
+    atom?.icode ?? atom?.inscode ?? importantResidue?.insertion_code ?? ""
+  );
+  const atomName = String(
+    atom?.atom ?? importantAtom?.atom_name ?? atom?.elem ?? ""
+  );
+  const atomType = String(
+    importantAtom?.atom_type ??
+      exactConnections[0]?.endpoint?.atom_type ??
+      atomName
+  );
+  const residueLabel = `${residueName} ${chain}${residueNumber}${insertionCode}`.trim();
+  const connections = connectionRecords.map(({ interaction, endpoint, partner }) => ({
+    key: `${interaction.rank ?? "edge"}-${endpoint.atom_serial}-${partner.atom_serial}`,
+    residueLabel: getInteractionResidueLabel(partner),
+    endpointAtom: endpoint.atom_name || endpoint.atom_type,
+    partnerAtom: partner.atom_name || partner.atom_type,
+    distance: Number(interaction.distance_angstrom),
+    importance: Number(interaction.importance || 0),
+    modelFrequency: Number(interaction.model_frequency || 0),
+    modelsEvaluated: Number(interaction.models_evaluated || 0),
+  }));
+
+  let accent = "#64748b";
+  let category = atom?.hetflag ? "Ligand atom" : "Protein atom";
+  if (importantResidue) {
+    accent = "#f59e0b";
+    category = "Important residue";
+  }
+  if (connections.length > 0) {
+    accent = "#7c3aed";
+    category = "Residue connection";
+  }
+  if (importantAtom) {
+    accent = "#dc2626";
+    category = "Important atom";
+  }
+
+  return {
+    key: `atom-${Number.isFinite(serial) ? serial : `${exactKey}-${atomName}`}`,
+    kind: "atom",
+    category,
+    accent,
+    modelName,
+    residueLabel,
+    atomName,
+    atomType,
+    atomSerial: Number.isFinite(serial) ? serial : null,
+    residueImportance:
+      importantResidue && Number.isFinite(Number(importantResidue.importance))
+        ? Number(importantResidue.importance)
+        : null,
+    residueRank: importantResidue?.rank ?? null,
+    atomImportance:
+      importantAtom && Number.isFinite(Number(importantAtom.importance))
+        ? Number(importantAtom.importance)
+        : null,
+    atomRank: importantAtom?.rank ?? null,
+    connections,
+  };
+}
+
+function buildInteractionHoverInformation(interaction, modelName) {
+  const source = interaction?.source || {};
+  const target = interaction?.target || {};
+  return {
+    key: `interaction-${source.atom_serial}-${target.atom_serial}-${
+      interaction?.rank ?? "edge"
+    }`,
+    kind: "interaction",
+    category: "Residue-to-residue connection",
+    accent: "#7c3aed",
+    modelName,
+    sourceLabel: getInteractionResidueLabel(source),
+    targetLabel: getInteractionResidueLabel(target),
+    sourceAtom: source.atom_name || source.atom_type || "Unknown atom",
+    targetAtom: target.atom_name || target.atom_type || "Unknown atom",
+    sourceAtomType: source.atom_type || source.atom_name || "Unknown subtype",
+    targetAtomType: target.atom_type || target.atom_name || "Unknown subtype",
+    sourceSerial: source.atom_serial ?? null,
+    targetSerial: target.atom_serial ?? null,
+    distance: Number(interaction?.distance_angstrom),
+    importance: Number(interaction?.importance || 0),
+    modelFrequency: Number(interaction?.model_frequency || 0),
+    modelsEvaluated: Number(interaction?.models_evaluated || 0),
+  };
+}
+
 function ResidueInteractionNetwork({ interactions, general = false }) {
   const prepared = (Array.isArray(interactions) ? interactions : [])
     .map((interaction) => {
@@ -173,6 +350,7 @@ export default function CholNet() {
   const [selectedModel, setSelectedModel] = useState("GNN");
   const [interpretationSchemaVersion, setInterpretationSchemaVersion] =
     useState(null);
+  const [viewerHoverInfo, setViewerHoverInfo] = useState(null);
   const isBatchMode = files.length > 0;
 
   const viewerDivRef = useRef(null);
@@ -398,7 +576,12 @@ export default function CholNet() {
     }
     const viewer = viewerRef.current;
     const importantInteractions = selectedInteractions;
+    const hoverLookup = buildViewerHoverLookup(
+      selectedInterpretation,
+      importantInteractions
+    );
 
+    setViewerHoverInfo(null);
     viewer.clear();
     viewer.addModel(pdbText, "pdb");
 
@@ -536,6 +719,20 @@ export default function CholNet() {
           opacity: 0.9,
           fromCap: 1,
           toCap: 1,
+          hoverable: true,
+          hover_callback: function () {
+            setViewerHoverInfo(
+              buildInteractionHoverInformation(interaction, selectedModel)
+            );
+          },
+          unhover_callback: function () {
+            setViewerHoverInfo((current) =>
+              current?.key ===
+              buildInteractionHoverInformation(interaction, selectedModel).key
+                ? null
+                : current
+            );
+          },
         });
 
         const distance = Number(interaction.distance_angstrom);
@@ -556,34 +753,73 @@ export default function CholNet() {
       }
     }
 
-    viewer.setHoverable(
-      { hetflag: true },
-      true,
-      function (atom) {
-        if (atom.label) return;
-        const chain = atom.chain || "";
-        const resi = atom.resi != null ? atom.resi : "";
-        const resn = atom.resn || "";
-        const aname = atom.atom || atom.elem || "";
-        atom.label = viewer.addLabel(`${resn} ${chain}${resi} • ${aname}`, {
-          position: { x: atom.x, y: atom.y, z: atom.z },
-          backgroundColor: "white",
-          borderColor: "#333",
-          borderThickness: 1,
-          fontColor: "#111",
-          fontSize: 12,
-          inFront: true,
-        });
-        viewer.render();
-      },
-      function (atom) {
-        if (atom.label) {
-          viewer.removeLabel(atom.label);
-          delete atom.label;
+    if (typeof viewer.setHoverable === "function") {
+      viewer.setHoverable(
+        { or: [{ protein: true }, { hetflag: true }] },
+        true,
+        function (atom) {
+          const info = buildAtomHoverInformation(
+            atom,
+            selectedInterpretation ? selectedModel : null,
+            hoverLookup
+          );
+          setViewerHoverInfo(info);
+
+          if (!atom.cholnetHoverLabel && typeof viewer.addLabel === "function") {
+            const labelParts = [info.residueLabel, info.atomType];
+            if (info.atomImportance !== null) {
+              labelParts.push(
+                `atom ${Math.round(info.atomImportance * 100)}%`
+              );
+            } else if (info.residueImportance !== null) {
+              labelParts.push(
+                `residue ${Math.round(info.residueImportance * 100)}%`
+              );
+            }
+            if (info.connections.length > 0) {
+              labelParts.push(
+                `↔ ${info.connections[0].residueLabel}${
+                  info.connections.length > 1
+                    ? ` +${info.connections.length - 1}`
+                    : ""
+                }`
+              );
+            }
+
+            atom.cholnetHoverLabel = viewer.addLabel(
+              labelParts.filter(Boolean).join(" • "),
+              {
+                position: { x: atom.x, y: atom.y, z: atom.z },
+                backgroundColor: "white",
+                borderColor: info.accent,
+                borderThickness: 2,
+                fontColor: "#111",
+                fontSize: 12,
+                inFront: true,
+              }
+            );
+          }
           viewer.render();
+        },
+        function (atom) {
+          if (atom.cholnetHoverLabel) {
+            viewer.removeLabel(atom.cholnetHoverLabel);
+            delete atom.cholnetHoverLabel;
+            viewer.render();
+          }
+
+          const serial = Number(atom?.serial ?? atom?.atom_serial);
+          const residueKey = getViewerResidueLookupKey(atom);
+          const atomName = atom?.atom ?? atom?.elem ?? "";
+          const hoverKey = `atom-${
+            Number.isFinite(serial) ? serial : `${residueKey}-${atomName}`
+          }`;
+          setViewerHoverInfo((current) =>
+            current?.key === hoverKey ? null : current
+          );
         }
-      }
-    );
+      );
+    }
 
     const evaluatedLigandSelections = (results || [])
       .map((result) => getLigandSite(result))
@@ -1070,7 +1306,8 @@ export default function CholNet() {
           {!isBatchMode && (
             <div style={styles.viewerNote}>
               Viewer: protein shown as cartoon; evaluated ligand poses are shown as
-              colored sticks.
+              colored sticks. Hover over protein residues, atoms, or purple
+              interaction lines to inspect their interpretation details.
             </div>
           )}
 
@@ -1085,7 +1322,10 @@ export default function CholNet() {
 
       {/* ---------- 3D viewer: SINGLE ONLY ---------- */}
       {!isBatchMode && (
-        <div style={{ marginTop: 12 }}>
+        <div
+          style={{ marginTop: 12, position: "relative" }}
+          onMouseLeave={() => setViewerHoverInfo(null)}
+        >
           <div
             ref={viewerDivRef}
             style={{
@@ -1098,6 +1338,122 @@ export default function CholNet() {
               overflow: "hidden",
             }}
           />
+
+          {viewerHoverInfo && (
+            <div
+              style={{
+                ...styles.viewerHoverCard,
+                borderLeftColor: viewerHoverInfo.accent,
+              }}
+              aria-live="polite"
+            >
+              <div style={styles.viewerHoverHeading}>
+                <span style={{ color: viewerHoverInfo.accent }}>
+                  {viewerHoverInfo.category}
+                </span>
+                {viewerHoverInfo.modelName && (
+                  <span style={styles.viewerHoverModel}>
+                    {viewerHoverInfo.modelName}
+                  </span>
+                )}
+              </div>
+
+              {viewerHoverInfo.kind === "interaction" ? (
+                <>
+                  <div style={styles.viewerHoverResidue}>
+                    {viewerHoverInfo.sourceLabel}
+                    <span style={styles.viewerHoverArrow}> ↔ </span>
+                    {viewerHoverInfo.targetLabel}
+                  </div>
+                  <div style={styles.viewerHoverDetail}>
+                    Atoms: {viewerHoverInfo.sourceAtom} ↔{" "}
+                    {viewerHoverInfo.targetAtom}
+                  </div>
+                  <div style={styles.viewerHoverDetail}>
+                    Atom subtypes: {viewerHoverInfo.sourceAtomType} ↔{" "}
+                    {viewerHoverInfo.targetAtomType}
+                  </div>
+                  {viewerHoverInfo.sourceSerial !== null &&
+                    viewerHoverInfo.targetSerial !== null && (
+                      <div style={styles.viewerHoverDetail}>
+                        PDB serials: {viewerHoverInfo.sourceSerial}, {" "}
+                        {viewerHoverInfo.targetSerial}
+                      </div>
+                    )}
+                  {Number.isFinite(viewerHoverInfo.distance) && (
+                    <div style={styles.viewerHoverDetail}>
+                      Distance: {viewerHoverInfo.distance.toFixed(1)} Å
+                    </div>
+                  )}
+                  <div style={styles.viewerHoverDetail}>
+                    Connection importance:{" "}
+                    {(viewerHoverInfo.importance * 100).toFixed(0)}%
+                  </div>
+                  <div style={styles.viewerHoverDetail}>
+                    Ensemble support: {viewerHoverInfo.modelFrequency}
+                    {viewerHoverInfo.modelsEvaluated > 0
+                      ? `/${viewerHoverInfo.modelsEvaluated} models`
+                      : " models"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={styles.viewerHoverResidue}>
+                    {viewerHoverInfo.residueLabel}
+                  </div>
+                  <div style={styles.viewerHoverDetail}>
+                    Atom: {viewerHoverInfo.atomName || "Unknown"}
+                    {viewerHoverInfo.atomType &&
+                      ` · subtype ${viewerHoverInfo.atomType}`}
+                  </div>
+                  {viewerHoverInfo.atomSerial !== null && (
+                    <div style={styles.viewerHoverDetail}>
+                      PDB atom serial: {viewerHoverInfo.atomSerial}
+                    </div>
+                  )}
+                  {viewerHoverInfo.residueImportance !== null && (
+                    <div style={styles.viewerHoverDetail}>
+                      Residue importance:{" "}
+                      {(viewerHoverInfo.residueImportance * 100).toFixed(0)}%
+                      {viewerHoverInfo.residueRank !== null &&
+                        ` · rank #${viewerHoverInfo.residueRank}`}
+                    </div>
+                  )}
+                  {viewerHoverInfo.atomImportance !== null && (
+                    <div style={styles.viewerHoverDetail}>
+                      Atom importance:{" "}
+                      {(viewerHoverInfo.atomImportance * 100).toFixed(0)}%
+                      {viewerHoverInfo.atomRank !== null &&
+                        ` · rank #${viewerHoverInfo.atomRank}`}
+                    </div>
+                  )}
+
+                  {viewerHoverInfo.connections.length > 0 && (
+                    <div style={styles.viewerHoverConnections}>
+                      <div style={styles.viewerHoverConnectionsTitle}>
+                        Connected residues
+                      </div>
+                      {viewerHoverInfo.connections.map((connection) => (
+                        <div
+                          key={connection.key}
+                          style={styles.viewerHoverConnection}
+                        >
+                          <strong>{connection.residueLabel}</strong>
+                          {" · "}
+                          {connection.endpointAtom} ↔ {connection.partnerAtom}
+                          {Number.isFinite(connection.distance) &&
+                            ` · ${connection.distance.toFixed(1)} Å`}
+                          {` · ${(connection.importance * 100).toFixed(0)}%`}
+                          {connection.modelsEvaluated > 0 &&
+                            ` · ${connection.modelFrequency}/${connection.modelsEvaluated} models`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1649,8 +2005,10 @@ export default function CholNet() {
             Tip: click any evaluated pose to highlight and zoom to its exact
             residue-name/chain/residue ID. Orange marks important residues and red
             marks exact important atoms. For GAT and GCN, purple lines connect
-            important atoms in different residues. Green sticks are retained
-            non-water experimental ligands that are not evaluated poses.
+            important atoms in different residues. Hover over a residue, atom, or
+            purple connection to view its subtype, importance, and interacting
+            partners. Green sticks are retained non-water experimental ligands
+            that are not evaluated poses.
           </div>
         </div>
       )}
@@ -1960,6 +2318,70 @@ const styles = {
     background: "white",
   },
   viewerNote: { marginTop: 12, fontSize: 16, color: "#444" },
+  viewerHoverCard: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 5,
+    width: "min(410px, calc(100% - 24px))",
+    maxHeight: 420,
+    overflow: "hidden",
+    padding: "11px 13px",
+    border: "1px solid #d7dce5",
+    borderLeft: "4px solid #64748b",
+    borderRadius: 9,
+    background: "rgba(255, 255, 255, 0.97)",
+    boxShadow: "0 5px 18px rgba(15, 23, 42, 0.16)",
+    color: "#263241",
+    fontSize: 13,
+    lineHeight: 1.5,
+    pointerEvents: "none",
+  },
+  viewerHoverHeading: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  viewerHoverModel: {
+    padding: "1px 7px",
+    borderRadius: 999,
+    background: "#eef1f6",
+    color: "#475569",
+    fontSize: 11,
+  },
+  viewerHoverResidue: {
+    marginTop: 5,
+    color: "#1f2937",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  viewerHoverArrow: {
+    color: "#7c3aed",
+  },
+  viewerHoverDetail: {
+    marginTop: 2,
+    color: "#465365",
+    fontSize: 12,
+  },
+  viewerHoverConnections: {
+    marginTop: 8,
+    paddingTop: 7,
+    borderTop: "1px solid #e6e8ed",
+  },
+  viewerHoverConnectionsTitle: {
+    marginBottom: 3,
+    color: "#6d28d9",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  viewerHoverConnection: {
+    marginTop: 3,
+    color: "#445065",
+    fontSize: 11,
+  },
   resultsSection: { marginTop: 20 },
   resultsHeader: {
     display: "flex",
