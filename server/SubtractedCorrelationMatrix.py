@@ -228,7 +228,7 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, residu
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))  # Adjust figsize for a better layout
 
     # Plot matrix1
-    sc1 = axs[0].imshow(matrixA.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
+    sc1 = axs[0].imshow(matrixA.pivot(index='Index1', columns='Index2', values='Distance'), cmap='viridis', aspect='auto')
     cbar1 = fig.colorbar(sc1, ax=axs[0])
     cbar1.set_label('Distance (Å)', fontsize=14)
     axs[0].set_title("PDB 1", fontsize=16)
@@ -237,7 +237,7 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, residu
     axs[0].invert_yaxis()
 
     # Plot matrix2
-    sc2 = axs[1].imshow(matrixB.pivot('Index1', 'Index2', 'Distance'), cmap='viridis', aspect='auto')
+    sc2 = axs[1].imshow(matrixB.pivot(index='Index1', columns='Index2', values='Distance'), cmap='viridis', aspect='auto')
     cbar2 = fig.colorbar(sc2, ax=axs[1])
     cbar2.set_label('Distance (Å)', fontsize=14)
     axs[1].set_title("PDB 2", fontsize=16)
@@ -245,7 +245,7 @@ def get_plots(pdb_file1_path, pdb_file2_path, unique_id, selected_chains, residu
     axs[1].invert_yaxis()
 
     # Plot the thresholded matrix (result)
-    sc3 = axs[2].imshow(sub.pivot('Index1', 'Index2', 'Delta_Distance'), cmap='viridis', aspect='auto')
+    sc3 = axs[2].imshow(sub.pivot(index='Index1', columns='Index2', values='Delta_Distance'), cmap='viridis', aspect='auto')
     cbar3 = fig.colorbar(sc3, ax=axs[2])
     cbar3.set_label('∆ Distance (Å)', fontsize=14)
     axs[2].set_title("∆ Distance", fontsize=16)

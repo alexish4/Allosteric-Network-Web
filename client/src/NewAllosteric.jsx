@@ -1,8 +1,10 @@
-import { React, useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import axios from 'axios';
-import("3dmol/build/3Dmol.js").then( ($3Dmol) => {
-    console.log($3Dmol);
+let threeDMolLibrary = null;
+import("3dmol/build/3Dmol.js").then((threeDMolModule) => {
+    threeDMolLibrary = threeDMolModule.default ?? threeDMolModule;
+    console.log(threeDMolLibrary);
     //can do things with $3Dmol here
     });
 
@@ -12,7 +14,8 @@ function NewAllosteric() {
     const [pdbFile2, setPdbFile2] = useState(null);
     const [dcdFile1, setDCDFile1] = useState(null);
     const [dcdFile2, setDCDFile2] = useState(null);
-    const [flownessType, setFlownessType] = useState(0);
+    const [activeSystem, setActiveSystem] = useState(0);
+    const [activePathMetric, setActivePathMetric] = useState(0);
     const [activeSecondaryContentTab, setActiveSecondaryContentTab] = useState(0);
     const [sourceValues, setSourceValues] = useState('');
     const [sinkValues, setSinkValues] = useState('');
@@ -31,7 +34,8 @@ function NewAllosteric() {
     
     const [wtData, setWtData] = useState(null);
     const [mutData, setMutData] = useState(null);
-    const [residueTable, setResidueTable] = useState([]);
+    const [residueTable1, setResidueTable1] = useState([]);
+    const [residueTable2, setResidueTable2] = useState([]);
 
     const FIGURE_URL = "Robust_Determination_of_Protein_Allosteric_Signaling_Pathways.png";
 
@@ -55,11 +59,18 @@ function NewAllosteric() {
         setAverage(parseInt(event.target.value));
     };
 
-    const switchFlownessTypeTab = (tabIndex) => {
-        setFlownessType(tabIndex);
+    const switchSystemTab = (systemIndex) => {
+        setActiveSystem(systemIndex);
 
         if (wtData !== null) {
-            render3dmol(wtData, mutData, 0, tabIndex, residueTable, -1, deltaValues, frequencyValues);
+            const system1Paths = activePathMetric === 0 ? wtData.top_paths : wtData.top_paths2;
+            const system2Paths = activePathMetric === 0 ? mutData.top_paths : mutData.top_paths2;
+            const [deltaMap, frequenciesMap] = calculateDeltaEdge(system1Paths, system2Paths);
+            const selectedResidueTable = systemIndex === 0 ? residueTable1 : residueTable2;
+
+            setDeltaValues(deltaMap);
+            setFrequencyValues(frequenciesMap);
+            render3dmol(wtData, mutData, systemIndex, activePathMetric, selectedResidueTable, -1, deltaMap, frequenciesMap);
         }
     };
 
@@ -68,7 +79,8 @@ function NewAllosteric() {
     };
 
     const unhighlight = () => {
-        render3dmol(wtData, mutData, 0, flownessType, residueTable, -1, deltaValues, frequencyValues);
+        const selectedResidueTable = activeSystem === 0 ? residueTable1 : residueTable2;
+        render3dmol(wtData, mutData, activeSystem, activePathMetric, selectedResidueTable, -1, deltaValues, frequencyValues);
     }
 
     const handleSubmit = async () => {
@@ -83,7 +95,7 @@ function NewAllosteric() {
 
         const formData2 = new FormData();
         formData2.append('pdb_file', pdbFile2);
-        formData2.append('render_pdb', pdbFile1);
+        formData2.append('render_pdb', pdbFile2);
         formData2.append('trajectory', dcdFile2);
         formData2.append('source_values', sourceValues);
         formData2.append('sink_values', sinkValues);
@@ -107,18 +119,25 @@ function NewAllosteric() {
 
             const wtData = response.data;
             const mutData = response2.data;
-            const parsedTable = JSON.parse(wtData.table);
+            const parsedTable1 = JSON.parse(wtData.table);
+            const parsedTable2 = JSON.parse(mutData.table);
             setWtData(wtData);
             setMutData(mutData);
             setBetweennessTopPaths1(wtData.top_paths);
             setCorrelationTopPaths1(wtData.top_paths2);
             setBetweennessTopPaths2(mutData.top_paths);
             setCorrelationTopPaths2(mutData.top_paths2);
-            setResidueTable(parsedTable);
-            let [delta_map, frequencies_map] = calculateDeltaEdge(wtData.top_paths, mutData.top_paths);
+            setResidueTable1(parsedTable1);
+            setResidueTable2(parsedTable2);
+            const defaultPathMetric = 0;
+            const system1Paths = wtData.top_paths;
+            const system2Paths = mutData.top_paths;
+            let [delta_map, frequencies_map] = calculateDeltaEdge(system1Paths, system2Paths);
+            setActivePathMetric(defaultPathMetric);
             setDeltaValues(delta_map);
             setFrequencyValues(frequencies_map);
-            render3dmol(wtData, mutData, 0, flownessType, parsedTable, -1, delta_map, frequencies_map); // by default don't highlight top path
+            const selectedResidueTable = activeSystem === 0 ? parsedTable1 : parsedTable2;
+            render3dmol(wtData, mutData, activeSystem, defaultPathMetric, selectedResidueTable, -1, delta_map, frequencies_map); // by default don't highlight top path
             setShowResults(true);
         } catch (error) {
             console.error('Error:', error);
@@ -127,19 +146,18 @@ function NewAllosteric() {
         setIsLoading(false);
     };
 
-    const handleWtHighlight = (path, index) => {
+    const handlePathHighlight = (path, index, systemIndex, pathMetric) => {
         console.log('Highlight clicked for path:', path);
         console.log("Path index is: ", index);
-        // Add your highlight logic here
+        const system1Paths = pathMetric === 0 ? wtData.top_paths : wtData.top_paths2;
+        const system2Paths = pathMetric === 0 ? mutData.top_paths : mutData.top_paths2;
+        const [deltaMap, frequenciesMap] = calculateDeltaEdge(system1Paths, system2Paths);
+        const selectedResidueTable = systemIndex === 0 ? residueTable1 : residueTable2;
 
-        render3dmol(wtData, mutData, 0, flownessType, residueTable, index, deltaValues, frequencyValues);
-    };
-
-    const handleMutHighlight = (path, index) => {
-        console.log('Highlight clicked for path:', path);
-        // Add your highlight logic here
-
-        render3dmol(wtData, mutData, 1, flownessType, residueTable, index, deltaValues, frequencyValues);
+        setActivePathMetric(pathMetric);
+        setDeltaValues(deltaMap);
+        setFrequencyValues(frequenciesMap);
+        render3dmol(wtData, mutData, systemIndex, pathMetric, selectedResidueTable, index, deltaMap, frequenciesMap);
     };
 
     const calculateDeltaEdge = (paths1, paths2) => {
@@ -200,10 +218,15 @@ function NewAllosteric() {
     };    
 
     const render3dmol = async (wt_data, mut_data, graphIndex, flowType, parsedTable, top_path_index, deltaMap, frequencyMap) => {
-        let universe = wt_data.pdb_content;
+        const selectedData = graphIndex === 0 ? wt_data : mut_data;
+        let universe = selectedData.pdb_content;
         let element = document.querySelector('#viewport');
         let config = { backgroundColor: 'white' };
-        let viewer = $3Dmol.createViewer( element, config );
+        if (!threeDMolLibrary) {
+            throw new Error('3Dmol.js has not finished loading.');
+        }
+
+        let viewer = threeDMolLibrary.createViewer( element, config );
         viewer.addModel( universe, "pdb");  
 
         const tooltip = document.createElement('div');
@@ -236,11 +259,11 @@ function NewAllosteric() {
                 color: color,
                 hoverable: true,
                 opacity: 1.0,
-                hover_callback: function (atom, viewer, event, container) {
+                hover_callback: function (atom, viewer, event) {
                     tooltip.style.display = "block";
                     tooltip.style.left = `${event.clientX}px`;
                     tooltip.style.top = `${event.clientY + window.scrollY}px`;
-                    tooltip.innerHTML = `Edge Label: ${edge.label}, PDB1-PDB2 Frequencies: ${frequencies}`;
+                    tooltip.innerHTML = `Edge Label: ${edge.label}, System 1 / System 2 path frequencies: ${frequencies}`;
                 },
                 unhover_callback: function () {
                     tooltip.style.display = "none";
@@ -306,12 +329,11 @@ function NewAllosteric() {
             });
         };
 
-        // Highlight edges based on the selected graph
-        processEdges(graphIndex === 0 ? edges.wt : edges.mut, true);
+        const selectedEdges = graphIndex === 0 ? edges.wt : edges.mut;
 
-        // Render the remaining edges
-        processEdges(edges.wt, false);
-        processEdges(edges.mut, false);
+        // Highlight the requested path and render the remaining edges for the selected system.
+        processEdges(selectedEdges, true);
+        processEdges(selectedEdges, false);
 
         const model = viewer.getModel();
         let atoms = model.selectedAtoms({});
@@ -319,7 +341,7 @@ function NewAllosteric() {
         console.log("Chains detected in model:", chains);
 
         viewer.setHoverable({}, true,
-            function (atom, viewer, event, container) {
+            function (atom, viewer) {
               if (!atom.label) {
                   atom.label = viewer.addLabel(atom.resn + "." + atom.resi + "." + atom.chain, { position: atom, backgroundColor: 'mintcream', fontColor: 'black' });
               }
@@ -342,7 +364,7 @@ function NewAllosteric() {
             colorIndex++;
         });
 
-        wt_data.source_values.forEach((source) => {
+        selectedData.source_values.forEach((source) => {
             const row = parsedTable.find((row) => row.NewIndex === source);
 
             if (row) {
@@ -365,7 +387,7 @@ function NewAllosteric() {
             }
         });
 
-        wt_data.sink_values.forEach((sink) => {
+        selectedData.sink_values.forEach((sink) => {
             const row = parsedTable.find((row) => row.NewIndex === sink);
 
             if (row) {
@@ -409,12 +431,136 @@ function NewAllosteric() {
                 <rect x="50" y="20" width="400" height="25" fill="url(#colorGradient)" stroke="black" />
     
                 {/* Labels */}
-                <text x="50" y="15" fontSize="14" fill="blue">{minDelta}, SYSTEM 2</text>
+                <text x="50" y="15" fontSize="14" fill="blue">{minDelta}, System 2 enriched</text>
                 <text x="250" y="15" fontSize="14" fill="black" textAnchor="middle">0</text>
-                <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">{maxDelta}, SYSTEM 1</text>
+                <text x="450" y="15" fontSize="14" fill="red" textAnchor="end">{maxDelta}, System 1 enriched</text>
             </svg>
         );
-    };    
+    };
+
+    const selectedSystemName = activeSystem === 0 ? 'System 1' : 'System 2';
+    const displayedBetweennessPaths = activeSystem === 0 ? betweennessTopPaths1 : betweennessTopPaths2;
+    const displayedCorrelationPaths = activeSystem === 0 ? correlationTopPaths1 : correlationTopPaths2;
+    const displayedResidueTable = activeSystem === 0 ? residueTable1 : residueTable2;
+
+    const residueByNode = new Map(
+        displayedResidueTable.map((row) => [Number(row.NewIndex), row])
+    );
+
+    const getNodeDistance = (firstNode, secondNode) => {
+        const firstResidue = residueByNode.get(Number(firstNode));
+        const secondResidue = residueByNode.get(Number(secondNode));
+
+        if (!firstResidue || !secondResidue) {
+            return null;
+        }
+
+        const firstCoordinates = [firstResidue.X, firstResidue.Y, firstResidue.Z].map(Number);
+        const secondCoordinates = [secondResidue.X, secondResidue.Y, secondResidue.Z].map(Number);
+
+        if (![...firstCoordinates, ...secondCoordinates].every(Number.isFinite)) {
+            return null;
+        }
+
+        return Math.sqrt(
+            firstCoordinates.reduce(
+                (sum, coordinate, index) => sum + ((coordinate - secondCoordinates[index]) ** 2),
+                0
+            )
+        );
+    };
+
+    const getTotalPathDistance = (path) => {
+        let totalDistance = 0;
+
+        for (let index = 0; index < path.nodes.length - 1; index++) {
+            const distance = getNodeDistance(path.nodes[index], path.nodes[index + 1]);
+
+            if (distance === null) {
+                return null;
+            }
+
+            totalDistance += distance;
+        }
+
+        return totalDistance;
+    };
+
+    const renderPathNodes = (path) => {
+        const totalPathDistance = getTotalPathDistance(path);
+
+        return (
+            <div>
+                <div
+                    style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        gap: '8px',
+                        margin: '8px 0'
+                    }}
+                >
+                    {path.nodes.map((node, position) => {
+                        const residue = residueByNode.get(Number(node));
+                        const nextNode = path.nodes[position + 1];
+                        const distance = nextNode === undefined ? null : getNodeDistance(node, nextNode);
+
+                        return (
+                            <React.Fragment key={`${node}-${position}`}>
+                                <span
+                                    style={{
+                                        display: 'inline-flex',
+                                        flexDirection: 'column',
+                                        padding: '7px 10px',
+                                        border: '1px solid #b8c2cc',
+                                        borderRadius: '7px',
+                                        backgroundColor: '#f7fafc',
+                                        lineHeight: 1.35
+                                    }}
+                                    title={residue ? `Node ${node}: ${residue['Residue Name']} ${residue['Residue ID']}, ${residue['Chain ID']}, ${residue['Atom Name']}` : `Node ${node}`}
+                                >
+                                    <strong>Node {node}</strong>
+                                    {residue && (
+                                        <span>
+                                            {residue['Residue Name']} {residue['Residue ID']} · {residue['Chain ID']} · {residue['Atom Name']}
+                                        </span>
+                                    )}
+                                </span>
+
+                                {nextNode !== undefined && (
+                                    <span
+                                        title={`Straight-line distance between representative atoms in ${selectedSystemName}`}
+                                        style={{ color: '#4a5568', whiteSpace: 'nowrap', fontWeight: 600 }}
+                                    >
+                                        — {distance === null ? 'distance unavailable' : `${distance.toFixed(2)} Å`} →
+                                    </span>
+                                )}
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+                <div style={{ margin: '8px 0', color: '#2d3748' }}>
+                    <strong>Total 3D structural distance:</strong>{' '}
+                    {totalPathDistance === null ? 'unavailable' : `${totalPathDistance.toFixed(2)} Å`}
+                </div>
+            </div>
+        );
+    };
+
+    const residueTableHeaderStyle = {
+        border: '1px solid #cbd5e0',
+        padding: '9px 12px',
+        backgroundColor: '#edf2f7',
+        textAlign: 'left',
+        whiteSpace: 'nowrap'
+    };
+
+    const residueTableCellStyle = {
+        border: '1px solid #e2e8f0',
+        padding: '8px 12px',
+        textAlign: 'left',
+        whiteSpace: 'nowrap'
+    };
     
     return (
         <div>
@@ -427,12 +573,16 @@ function NewAllosteric() {
                     className="abstract-figure"
                 />
             </div>
-            Please Submit PDB Files: <input type="file" onChange={handlePdbFile1Change} /> <input type="file" onChange={handlePdbFile2Change} />
-            <br></br>
-            Please Submit DCD Files (Match Order With PDB Files): <input type="file" onChange={handleDCDFile1Change} /> <input type="file" onChange={handleDCDFile2Change} />
-            <br></br>
+            <div>
+                <strong>System 1:</strong> PDB file <input type="file" onChange={handlePdbFile1Change} />
+                DCD trajectory <input type="file" onChange={handleDCDFile1Change} />
+            </div>
+            <div>
+                <strong>System 2:</strong> PDB file <input type="file" onChange={handlePdbFile2Change} />
+                DCD trajectory <input type="file" onChange={handleDCDFile2Change} />
+            </div>
 
-            Enter Source ID's
+            Enter Source IDs
             <input
                 type="text"
                 value={sourceValues}
@@ -441,7 +591,7 @@ function NewAllosteric() {
                 placeholder={`(e.g., 44-50, 100-110)`}
             />
             <br></br>
-            Enter Sink ID's
+            Enter Sink IDs
             <input
                 type="text"
                 value={sinkValues}
@@ -484,8 +634,8 @@ function NewAllosteric() {
             <button onClick={handleSubmit}>Submit</button>
 
             <div className="tab-navigation">
-                <button onClick={() => switchFlownessTypeTab(0)} className={flownessType === 0 ? 'active-tab' : ''}>Betweenness</button>
-                <button onClick={() => switchFlownessTypeTab(1)} className={flownessType === 1 ? 'active-tab' : ''}>Correlation</button>
+                <button onClick={() => switchSystemTab(0)} className={activeSystem === 0 ? 'active-tab' : ''}>System 1</button>
+                <button onClick={() => switchSystemTab(1)} className={activeSystem === 1 ? 'active-tab' : ''}>System 2</button>
             </div>
             
             {showResults && (
@@ -504,7 +654,7 @@ function NewAllosteric() {
 
                         {/* Right: Color Scale */}
                         <div style={{ flex: 1, textAlign: 'center' }}>
-                            <h3>Edges Colored By Delta Frequency</h3>
+                            <h3>Edges Colored by Δ Path Frequency (System 1 − System 2)</h3>
                             <ColorScale />
                         </div>
                     </div>
@@ -526,58 +676,103 @@ function NewAllosteric() {
 
             <div className="tab-content">
                 {activeSecondaryContentTab === 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div>
-                            <h3>Top Paths From System 1</h3>
-                            <ol>
-                                {betweennessTopPaths1.map((path, index) => (
-                                    <li key={index}>
-                                        <strong>Path Length:</strong> {path.edge_length} <br />
-                                        <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                        <button onClick={() => handleWtHighlight(path, index)}>Highlight</button>
-                                    </li>
-                                ))}
-                            </ol>
-                        </div>
-                        <div>
-                            <h3>Top Paths From System 2</h3>
-                            <ol>
-                                {betweennessTopPaths2.map((path, index) => (
-                                    <li key={index}>
-                                        <strong>Path Length:</strong> {path.edge_length} <br />
-                                        <strong>Nodes:</strong> {path.nodes.join(' → ')}
-                                        <button onClick={() => handleMutHighlight(path, index)}>Highlight</button>
-                                    </li>
-                                ))}
-                            </ol>
+                    <div>
+                        <h2>{selectedSystemName} Top Paths</h2>
+                        <p>
+                            System 1 is the first PDB/DCD pair and System 2 is the second PDB/DCD pair.
+                            Both systems use the same source and sink residues. Betweenness-weighted and
+                            correlation-weighted paths are shown together for the selected system. Distances
+                            shown between neighboring nodes are straight-line distances between their
+                            representative atoms in the selected system&apos;s PDB. The total 3D structural distance
+                            is their sum; neither value is a betweenness or correlation path score.
+                        </p>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+                                gap: '18px',
+                                alignItems: 'start'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    maxHeight: '720px',
+                                    overflowY: 'auto',
+                                    padding: '12px',
+                                    border: '1px solid #d8dee6',
+                                    borderRadius: '8px'
+                                }}
+                            >
+                                <h3>Betweenness-Weighted Paths</h3>
+                                <ol style={{ paddingRight: '18px' }}>
+                                    {displayedBetweennessPaths.map((path, index) => (
+                                        <li key={index} style={{ marginBottom: '14px' }}>
+                                            {renderPathNodes(path)}
+                                            <button onClick={() => handlePathHighlight(path, index, activeSystem, 0)}>
+                                                Highlight path
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ol>
+                            </div>
+                            <div
+                                style={{
+                                    maxHeight: '720px',
+                                    overflowY: 'auto',
+                                    padding: '12px',
+                                    border: '1px solid #d8dee6',
+                                    borderRadius: '8px'
+                                }}
+                            >
+                                <h3>Correlation-Weighted Paths</h3>
+                                <ol style={{ paddingRight: '18px' }}>
+                                    {displayedCorrelationPaths.map((path, index) => (
+                                        <li key={index} style={{ marginBottom: '14px' }}>
+                                            {renderPathNodes(path)}
+                                            <button onClick={() => handlePathHighlight(path, index, activeSystem, 1)}>
+                                                Highlight path
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ol>
+                            </div>
                         </div>
                     </div>
                 )}
                 {activeSecondaryContentTab === 1 && (
                     <div>
-                        <h3>Residue Table For Index LookUp</h3>
-                        <table>
+                        <h3>{selectedSystemName} Residue Lookup and Coordinates</h3>
+                        <p>
+                            Coordinates are in Ångströms and are used to calculate the straight-line distances shown between path nodes.
+                        </p>
+                        <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr>
-                                    <th>Index</th>
-                                    <th>AtomName</th>
-                                    <th>ResName</th>
-                                    <th>ResID</th>
-                                    <th>ChainID</th>
+                                    <th style={residueTableHeaderStyle}>Node</th>
+                                    <th style={residueTableHeaderStyle}>Residue</th>
+                                    <th style={residueTableHeaderStyle}>Chain</th>
+                                    <th style={residueTableHeaderStyle}>Representative Atom</th>
+                                    <th style={residueTableHeaderStyle}>X (Å)</th>
+                                    <th style={residueTableHeaderStyle}>Y (Å)</th>
+                                    <th style={residueTableHeaderStyle}>Z (Å)</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {residueTable.map((row, index) => (
+                                {displayedResidueTable.map((row, index) => (
                                     <tr key={index}>
-                                        <td>{row.NewIndex}</td>
-                                        <td>{row["Atom Name"]}</td>
-                                        <td>{row["Residue Name"]}</td>
-                                        <td>{row["Residue ID"]}</td>  
-                                        <td>{row["Chain ID"]}</td>       
+                                        <td style={residueTableCellStyle}>{row.NewIndex}</td>
+                                        <td style={residueTableCellStyle}>{row["Residue Name"]} {row["Residue ID"]}</td>
+                                        <td style={residueTableCellStyle}>{row["Chain ID"]}</td>
+                                        <td style={residueTableCellStyle}>{row["Atom Name"]}</td>
+                                        <td style={residueTableCellStyle}>{Number(row.X).toFixed(3)}</td>
+                                        <td style={residueTableCellStyle}>{Number(row.Y).toFixed(3)}</td>
+                                        <td style={residueTableCellStyle}>{Number(row.Z).toFixed(3)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 )}
 

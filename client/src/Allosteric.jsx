@@ -25,13 +25,13 @@ function Allosteric() {
   const [startingIndexValue, setStartingIndexValue] = useState('0');
   const [imgData, setImgData] = useState('');
   const [imgData2, setImgData2] = useState('');
-  const [paths, setPaths] = useState([]);
-  const [paths2, setPaths2] = useState([]);
+  const [betweennessPaths, setBetweennessPaths] = useState([]);
+  const [correlationPaths, setCorrelationPaths] = useState([]);
   const [nglContent, setNglContent] = useState(null);
 
-  window.displayTopPaths = (paths, paths2) => {
-    setPaths(paths);
-    setPaths2(paths2);
+  window.displayTopPaths = (betweennessPathResults, correlationPathResults) => {
+    setBetweennessPaths(betweennessPathResults);
+    setCorrelationPaths(correlationPathResults);
   }
 
   function highlightPathEdges(path) {
@@ -270,25 +270,29 @@ function Allosteric() {
       {/* Tab content */}
       {tab === 'TopPaths' && (
         <div id="TopPaths" className="tabcontent">
-          <h2>Top Shortest Paths</h2>
+          <h2>Top Paths Through the Same Network</h2>
+          <p>
+            Both columns show paths between the same source and sink residues in the same
+            uploaded network. They differ only in how each edge's length is calculated.
+          </p>
           <div style={{ display: "flex" }}>
             <div style={{ flex: 1 }}>
-              <strong>Edge Length = -ln(betweenness)</strong>
-              {paths.map((path, index) => (
+              <strong>Betweenness-weighted paths: edge length = -ln(betweenness)</strong>
+              {betweennessPaths.map((path, index) => (
                 <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ marginRight: "10px" }}>
-                      Path {index + 1}: Total Path Length From Betweenness: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
+                      Path {index + 1}: Total Betweenness-Weighted Length: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
                   </div>
                   <button onClick={() => highlightPathEdges(path)}>Highlight</button>
                 </div>
               ))}
             </div>
             <div style={{ flex: 1 }}>
-              <strong>Edge Length = -ln(correlation)</strong>
-              {paths2.map((path, index) => (
+              <strong>Correlation-weighted paths: edge length = -ln(correlation)</strong>
+              {correlationPaths.map((path, index) => (
                 <div key={index} style={{ display: "flex", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ marginRight: "10px" }}>
-                      Path {index + 1}: Total Path Length From Correlation: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
+                      Path {index + 1}: Total Correlation-Weighted Length: {path.edge_length}, Path: {path.nodes.map(node => startingIndexValue === "1" ? node + 1 : node).join(" -> ")}
                   </div>
                   <button onClick={() => highlightPathEdges(path)}>Highlight</button>
                 </div>

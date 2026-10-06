@@ -28,6 +28,225 @@ function getInteractionResidueLabel(atom) {
     : String(atom.residue_name);
 }
 
+function formatResultImportance(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const importance = Number(value);
+  return Number.isFinite(importance)
+    ? `${(importance * 100).toFixed(1)}%`
+    : "";
+}
+
+function formatResultResidues(interpretation) {
+  return (interpretation?.top_residues || [])
+    .map((residue, index) => {
+      const label = getInteractionResidueLabel(residue);
+      const importance = formatResultImportance(residue.importance);
+      return `#${residue.rank ?? index + 1} ${label}${
+        importance ? ` (${importance})` : ""
+      }`;
+    })
+    .join("; ");
+}
+
+function formatResultAtoms(interpretation) {
+  return (interpretation?.top_atoms || [])
+    .map((atom, index) => {
+      const residue = atom.residue_name
+        ? getInteractionResidueLabel(atom)
+        : `graph node ${atom.node_index ?? "unknown"}`;
+      const atomName = atom.atom_name || atom.atom_type || "unknown atom";
+      const subtype = atom.atom_type ? `subtype ${atom.atom_type}` : "";
+      const serial =
+        atom.atom_serial !== undefined && atom.atom_serial !== null
+          ? `serial ${atom.atom_serial}`
+          : "";
+      const importance = formatResultImportance(atom.importance);
+      const details = [subtype, serial, importance].filter(Boolean).join(", ");
+      return `#${atom.rank ?? index + 1} ${residue} ${atomName}${
+        details ? ` (${details})` : ""
+      }`;
+    })
+    .join("; ");
+}
+
+function formatResultInteractions(interpretation) {
+  const interactions = Array.isArray(interpretation?.top_residue_interactions)
+    ? interpretation.top_residue_interactions
+    : Array.isArray(interpretation?.top_edges)
+    ? interpretation.top_edges
+    : [];
+
+  return interactions
+    .map((interaction, index) => {
+      const source = interaction.source || {};
+      const target = interaction.target || {};
+      const sourceLabel = getInteractionResidueLabel(source);
+      const targetLabel = getInteractionResidueLabel(target);
+      const sourceAtom = source.atom_name || source.atom_type || "?";
+      const targetAtom = target.atom_name || target.atom_type || "?";
+      const distance = Number(interaction.distance_angstrom);
+      const importance = formatResultImportance(interaction.importance);
+      const modelsEvaluated = Number(
+        interaction.models_evaluated ||
+          interpretation?.interaction_filters?.models_evaluated ||
+          0
+      );
+      const support = Number(interaction.model_frequency || 0);
+      const details = [
+        Number.isFinite(distance) ? `${distance.toFixed(2)} Å` : "",
+        importance,
+        support > 0
+          ? `${support}${modelsEvaluated > 0 ? `/${modelsEvaluated}` : ""} models`
+          : "",
+        source.atom_serial !== undefined && target.atom_serial !== undefined
+          ? `serials ${source.atom_serial}/${target.atom_serial}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      return `#${interaction.rank ?? index + 1} ${sourceLabel} ${sourceAtom} ↔ ${
+        targetLabel
+      } ${targetAtom}${details ? ` (${details})` : ""}`;
+    })
+    .join("; ");
+}
+
+function formatResultCategories(records, labelKey) {
+  return (records || [])
+    .map((record) => {
+      const label = record?.[labelKey];
+      if (!label) return "";
+      const count = Number(record.count || 0);
+      const importance = formatResultImportance(record.mean_importance);
+      const details = [count > 0 ? `count ${count}` : "", importance]
+        .filter(Boolean)
+        .join(", ");
+      return `${label}${details ? ` (${details})` : ""}`;
+    })
+    .filter(Boolean)
+    .join("; ");
+}
+
+function escapeResultCsvValue(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text)
+    ? `"${text.replaceAll('"', '""')}"`
+    : text;
+}
+
+function buildSingleResultsCsv({
+  results,
+  modelNames,
+  filename,
+  ligand,
+  getScoreLabel,
+}) {
+  const headers = [
+    "filename",
+    "rank",
+    "ligand_id",
+    "ligand_residue_name",
+    "ligand_chain",
+    "ligand_residue_number",
+    "ligand_smiles",
+    "site_source",
+    "vina_affinity_kcal_mol",
+  ];
+  const modelFields = [
+    "score",
+    "standard_deviation",
+    "classification",
+    "experiment_scores",
+    "interpretation_method",
+    "mapping_status",
+    "top_residues",
+    "top_atoms",
+    "top_residue_types",
+    "top_atom_types",
+    "residue_interactions",
+    "residue_pair_types",
+    "atom_pair_types",
+    "interaction_distance_ranges",
+    "interpretation_warning",
+  ];
+
+  for (const modelName of modelNames || []) {
+    for (const field of modelFields) headers.push(`${modelName}_${field}`);
+  }
+
+  const rows = (results || []).map((result, index) => {
+    const site = getLigandSite(result);
+    const row = {
+      filename: filename || result.filename || "",
+      rank: result.rank ?? index + 1,
+      ligand_id: site.label,
+      ligand_residue_name: site.residueName,
+      ligand_chain: site.chain,
+      ligand_residue_number: Number.isFinite(site.residueNumber)
+        ? site.residueNumber
+        : "",
+      ligand_smiles: ligand?.smiles ?? "",
+      site_source: result.site_source ?? "",
+      vina_affinity_kcal_mol: result?.docking_pose?.affinity_kcal_mol ?? "",
+    };
+
+    for (const modelName of modelNames || []) {
+      const modelResult = result?.[modelName] || {};
+      const interpretation = modelResult.interpretation || {};
+      const experiments = modelResult.experiment_breakdown || {};
+      row[`${modelName}_score`] = modelResult.mean_score ?? "";
+      row[`${modelName}_standard_deviation`] = modelResult.std_score ?? "";
+      row[`${modelName}_classification`] = getScoreLabel(
+        modelName,
+        modelResult.mean_score
+      );
+      row[`${modelName}_experiment_scores`] = Object.entries(experiments)
+        .map(([experiment, score]) => `${experiment}: ${score}`)
+        .join("; ");
+      row[`${modelName}_interpretation_method`] = interpretation.method ?? "";
+      row[`${modelName}_mapping_status`] = interpretation.mapping_status ?? "";
+      row[`${modelName}_top_residues`] = formatResultResidues(interpretation);
+      row[`${modelName}_top_atoms`] = formatResultAtoms(interpretation);
+      row[`${modelName}_top_residue_types`] = formatResultCategories(
+        interpretation.top_residue_types,
+        "residue_name"
+      );
+      row[`${modelName}_top_atom_types`] = formatResultCategories(
+        interpretation.top_atom_types,
+        "atom_type"
+      );
+      row[`${modelName}_residue_interactions`] = formatResultInteractions(
+        interpretation
+      );
+      row[`${modelName}_residue_pair_types`] = formatResultCategories(
+        interpretation.top_residue_pair_types,
+        "residue_pair"
+      );
+      row[`${modelName}_atom_pair_types`] = formatResultCategories(
+        interpretation.top_atom_pair_types,
+        "atom_pair"
+      );
+      row[`${modelName}_interaction_distance_ranges`] = formatResultCategories(
+        interpretation.top_interaction_distance_bins,
+        "distance_bin"
+      );
+      row[`${modelName}_interpretation_warning`] = interpretation.warning ?? "";
+    }
+
+    return row;
+  });
+
+  const csv = [
+    headers.map(escapeResultCsvValue).join(","),
+    ...rows.map((row) =>
+      headers.map((header) => escapeResultCsvValue(row[header])).join(",")
+    ),
+  ].join("\r\n");
+
+  return { headers, rows, csv };
+}
+
 function getViewerResidueLookupKey(atom, includeInsertionCode = true) {
   const residueName = String(atom?.residue_name ?? atom?.resn ?? "").toUpperCase();
   const chain = String(atom?.chain_id ?? atom?.chain ?? "");
@@ -881,6 +1100,35 @@ export default function CholNet() {
     selectedInteractions,
   ]);
 
+  const downloadSingleResults = () => {
+    if (!Array.isArray(rankedResults) || rankedResults.length === 0) return;
+
+    const sourceFilename = file?.name || rankedResults[0]?.filename || "structure.pdb";
+    const { csv } = buildSingleResultsCsv({
+      results: rankedResults,
+      modelNames: modelOrder,
+      filename: sourceFilename,
+      ligand: ligandMetadata,
+      getScoreLabel,
+    });
+
+    // Include a UTF-8 BOM so Excel preserves Å, residue arrows, and other labels.
+    const blob = new Blob(["\uFEFF", csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+    const safeFilename = sourceFilename
+      .replace(/\.pdb$/i, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_") || "structure";
+    downloadLink.href = url;
+    downloadLink.download = `${safeFilename}_CholBindNet_results.csv`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const downloadBatchCsv = () => {
     if (!Array.isArray(batchResults)) return;
 
@@ -1463,20 +1711,37 @@ export default function CholNet() {
           <div style={styles.resultsHeader}>
             <h2 style={{ margin: 0 }}>Results (docked ligand poses)</h2>
 
-            {selectedClr && (
-              <div style={styles.selectedClrControls}>
-                <span>
-                  Highlighting <strong>{selectedClr.label}</strong>
-                </span>
-                <button
-                  type="button"
-                  style={{ ...styles.button, padding: "6px 10px" }}
-                  onClick={() => setSelectedClr(null)}
-                >
-                  Show all poses
-                </button>
-              </div>
-            )}
+            <div style={styles.resultsActions}>
+              <button
+                type="button"
+                style={styles.downloadResultsButton}
+                onClick={downloadSingleResults}
+                disabled={rankedResults.length === 0}
+                title="Download every docked pose, all model predictions, and detailed residue/atom interpretations as a CSV"
+              >
+                Download Results (CSV)
+              </button>
+
+              {selectedClr && (
+                <div style={styles.selectedClrControls}>
+                  <span>
+                    Highlighting <strong>{selectedClr.label}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    style={{ ...styles.button, padding: "6px 10px" }}
+                    onClick={() => setSelectedClr(null)}
+                  >
+                    Show all poses
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={styles.downloadResultsHint}>
+            Download includes every pose, Vina affinity, GNN/GAT/GCN scores,
+            important residues and atoms, and residue-to-residue connections.
           </div>
 
           {ligandMetadata && (
@@ -2389,6 +2654,28 @@ const styles = {
     justifyContent: "space-between",
     gap: 12,
     flexWrap: "wrap",
+  },
+  resultsActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  downloadResultsButton: {
+    padding: "8px 13px",
+    border: "1px solid #2563eb",
+    borderRadius: 8,
+    background: "#2563eb",
+    color: "white",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  downloadResultsHint: {
+    marginTop: 7,
+    color: "#666",
+    fontSize: 12,
   },
   selectedClrControls: {
     display: "flex",
