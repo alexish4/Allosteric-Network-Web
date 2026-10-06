@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import "./CholNet.css";
 
 function getLigandSite(result) {
   const residueName = String(
@@ -791,7 +792,7 @@ export default function CholNet() {
     if (!$3Dmol || !el || !pdbText) return;
 
     if (!viewerRef.current) {
-      viewerRef.current = $3Dmol.createViewer(el, { backgroundColor: "white" });
+      viewerRef.current = $3Dmol.createViewer(el, { backgroundColor: "#07100f" });
     }
     const viewer = viewerRef.current;
     const importantInteractions = selectedInteractions;
@@ -1009,10 +1010,10 @@ export default function CholNet() {
               labelParts.filter(Boolean).join(" • "),
               {
                 position: { x: atom.x, y: atom.y, z: atom.z },
-                backgroundColor: "white",
+                backgroundColor: "#0e1d1b",
                 borderColor: info.accent,
                 borderThickness: 2,
-                fontColor: "#111",
+                fontColor: "#f2fbf7",
                 fontSize: 12,
                 inFront: true,
               }
@@ -1388,10 +1389,10 @@ export default function CholNet() {
   };
 
   return (
-    <div style={styles.body}>
+    <div className="cholnet-page" style={styles.body}>
       <h1 style={styles.h1}>CholBindNet Interface</h1>
 
-      <div style={styles.publicationSection}>
+      <div className="cholnet-publication" style={styles.publicationSection}>
         <a
           href={PUBLICATION_URL}
           target="_blank"
@@ -1400,18 +1401,20 @@ export default function CholNet() {
           title="View the CholBindNet publication"
         >
           <img
+            className="cholnet-abstract-figure"
             src={ABSTRACT_FIGURE_URL}
             alt="CholBindNet graphical abstract"
             style={styles.abstractFigure}
           />
         </a>
 
-        <div style={styles.publicationText}>
+        <div className="cholnet-publication-text" style={styles.publicationText}>
           <strong>CholBindNet</strong> is an interpretable neural-network framework
           for classifying cholesterol-binding sites in transmembrane proteins.
         </div>
 
         <a
+          className="cholnet-publication-link"
           href={PUBLICATION_URL}
           target="_blank"
           rel="noopener noreferrer"
@@ -1422,13 +1425,13 @@ export default function CholNet() {
       </div>
 
       {error && (
-        <div style={styles.error}>
+        <div className="cholnet-error" style={styles.error}>
           <strong>Error:</strong> {error}
         </div>
       )}
 
-      <div style={styles.uploadSection}>
-        <div style={styles.description}>
+      <div className="cholnet-upload-section" style={styles.uploadSection}>
+        <div className="cholnet-description" style={styles.description}>
           Upload a protein PDB and optionally enter one connected-molecule SMILES
           string. The server will blind-dock that ligand, append the poses, and rank
           their surrounding protein sites. Leave SMILES blank to dock cholesterol.
@@ -1530,7 +1533,7 @@ export default function CholNet() {
             </button>
 
             {files.length > 0 && (
-              <div style={{ fontSize: 13, color: "#555" }}>
+              <div style={{ fontSize: 13, color: "#99aaa4" }}>
                 {files.length} PDBs selected
                 <button
                   type="button"
@@ -1552,14 +1555,14 @@ export default function CholNet() {
           </div>
 
           {!isBatchMode && (
-            <div style={styles.viewerNote}>
+            <div className="cholnet-viewer-note" style={styles.viewerNote}>
               Viewer: protein shown as cartoon; evaluated ligand poses are shown as
               colored sticks. Hover over protein residues, atoms, or purple
               interaction lines to inspect their interpretation details.
             </div>
           )}
 
-          <div style={styles.scopeNote}>
+          <div className="cholnet-scope-note" style={styles.scopeNote}>
             Vina affinity estimates docking favorability. CholBindNet scores the
             nearby protein environment; for non-cholesterol ligands, that score is
             an extrapolation from cholesterol-site training and is not a binding
@@ -1571,17 +1574,19 @@ export default function CholNet() {
       {/* ---------- 3D viewer: SINGLE ONLY ---------- */}
       {!isBatchMode && (
         <div
+          className="cholnet-viewer-region"
           style={{ marginTop: 12, position: "relative" }}
           onMouseLeave={() => setViewerHoverInfo(null)}
         >
           <div
+            className="cholnet-viewer-shell"
             ref={viewerDivRef}
             style={{
               width: "100%",
               height: 520,
               border: "1px solid #ddd",
               borderRadius: 8,
-              background: "white",
+              background: "#07100f",
               position: "relative",
               overflow: "hidden",
             }}
@@ -1707,7 +1712,7 @@ export default function CholNet() {
 
       {/* ---------- Single results ---------- */}
       {Array.isArray(results) && (
-        <div style={styles.resultsSection}>
+        <div className="cholnet-results-section" style={styles.resultsSection}>
           <div style={styles.resultsHeader}>
             <h2 style={{ margin: 0 }}>Results (docked ligand poses)</h2>
 
@@ -1745,7 +1750,7 @@ export default function CholNet() {
           </div>
 
           {ligandMetadata && (
-            <div style={styles.ligandMetadata}>
+            <div className="cholnet-ligand-metadata" style={styles.ligandMetadata}>
               <strong>Docked ligand:</strong>{" "}
               <code style={styles.smilesCode}>{ligandMetadata.smiles}</code>
               {Number.isFinite(Number(ligandMetadata.heavy_atom_count)) && (
@@ -1758,10 +1763,10 @@ export default function CholNet() {
           )}
 
           {predictionScope && (
-            <div style={styles.scopeNote}>{predictionScope}</div>
+            <div className="cholnet-scope-note" style={styles.scopeNote}>{predictionScope}</div>
           )}
 
-          <div style={styles.thresholdLegend}>
+          <div className="cholnet-threshold-legend" style={styles.thresholdLegend}>
             <div style={styles.thresholdTitle}>
               Model-specific thresholds averaged across five spy experiments
             </div>
@@ -1845,7 +1850,9 @@ export default function CholNet() {
                       title={`Highlight ${site.label} in the 3D viewer`}
                       style={{
                         cursor: "pointer",
-                        background: isSelected ? "#fff1ff" : "white",
+                        background: isSelected
+                          ? "rgba(183, 161, 255, 0.14)"
+                          : "#0a1816",
                         outline: isSelected ? "2px solid #ff00ff" : "none",
                         outlineOffset: -2,
                       }}
@@ -1870,7 +1877,7 @@ export default function CholNet() {
                         />
                         <strong
                           style={{
-                            color: isSelected ? "#b000b0" : "#111",
+                            color: isSelected ? "#e3d9ff" : "#f2fbf7",
                             textDecoration: isSelected ? "underline" : "none",
                           }}
                         >
@@ -1884,12 +1891,12 @@ export default function CholNet() {
                             borderRadius: 999,
                             background:
                               r.site_source === "vina_docked"
-                                ? "#fff4d6"
-                                : "#dcfce7",
+                                ? "rgba(255, 173, 115, 0.14)"
+                                : "rgba(159, 255, 207, 0.12)",
                             color:
                               r.site_source === "vina_docked"
-                                ? "#8a5a00"
-                                : "#166534",
+                                ? "#ffbd8f"
+                                : "#9fffcf",
                             fontSize: 11,
                             fontWeight: 700,
                           }}
@@ -1950,7 +1957,7 @@ export default function CholNet() {
             </table>
           </div>
 
-          <div style={styles.interpretationSection}>
+          <div className="cholnet-interpretation-section" style={styles.interpretationSection}>
             <div style={styles.interpretationHeader}>
               <div>
                 <h3 style={{ margin: 0 }}>Important residues and atoms</h3>
@@ -2006,7 +2013,7 @@ export default function CholNet() {
             </div>
 
             {!selectedResult && (
-              <div style={styles.emptyInterpretation}>
+              <div className="cholnet-empty-interpretation" style={styles.emptyInterpretation}>
                 Click a ligand-pose row above to view its model interpretation and exact
                 PDB atom/residue IDs.
               </div>
@@ -2044,8 +2051,8 @@ export default function CholNet() {
                   </div>
                 )}
 
-                <div style={styles.interpretationGrid}>
-                  <div style={styles.importanceCard}>
+                <div className="cholnet-interpretation-grid" style={styles.interpretationGrid}>
+                  <div className="cholnet-importance-card" style={styles.importanceCard}>
                     <h4 style={styles.importanceTitle}>Top residues</h4>
                     {Array.isArray(selectedInterpretation.top_residues) &&
                     selectedInterpretation.top_residues.length > 0 ? (
@@ -2086,7 +2093,7 @@ export default function CholNet() {
                     )}
                   </div>
 
-                  <div style={styles.importanceCard}>
+                  <div className="cholnet-importance-card" style={styles.importanceCard}>
                     <h4 style={styles.importanceTitle}>Top atoms</h4>
                     {Array.isArray(selectedInterpretation.top_atoms) &&
                     selectedInterpretation.top_atoms.length > 0 ? (
@@ -2139,7 +2146,7 @@ export default function CholNet() {
                 </div>
 
                 {(selectedModel === "GAT" || selectedModel === "GCN") && (
-                  <div style={styles.interactionSection}>
+                  <div className="cholnet-interaction-section" style={styles.interactionSection}>
                     <div style={styles.interactionHeader}>
                       <h4 style={styles.interactionTitle}>
                         Residue-to-residue connections
@@ -2158,7 +2165,7 @@ export default function CholNet() {
 
                     {selectedInteractions.length > 0 ? (
                       <div style={styles.interactionLayout}>
-                        <div style={styles.interactionNetworkCard}>
+                        <div className="cholnet-interaction-network-card" style={styles.interactionNetworkCard}>
                           <ResidueInteractionNetwork
                             interactions={selectedInteractions}
                           />
@@ -2180,6 +2187,7 @@ export default function CholNet() {
                             return (
                               <div
                                 key={`${source.atom_serial}-${target.atom_serial}-${interaction.rank}`}
+                                className="cholnet-interaction-item"
                                 style={styles.interactionItem}
                               >
                                 <div style={styles.interactionPair}>
@@ -2243,7 +2251,7 @@ export default function CholNet() {
             )}
 
             {selectedResult && !selectedInterpretation && (
-              <div style={styles.missingInterpretation}>
+              <div className="cholnet-missing-interpretation" style={styles.missingInterpretation}>
                 <strong>{selectedModel} is selected.</strong>{" "}
                 {selectedModelResult
                   ? "Its prediction score was returned, but its interpretation payload was not."
@@ -2266,7 +2274,7 @@ export default function CholNet() {
             )}
           </div>
 
-          <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
+          <div style={{ marginTop: 10, fontSize: 13, color: "#99aaa4" }}>
             Tip: click any evaluated pose to highlight and zoom to its exact
             residue-name/chain/residue ID. Orange marks important residues and red
             marks exact important atoms. For GAT and GCN, purple lines connect
@@ -2280,14 +2288,14 @@ export default function CholNet() {
 
       {/* ---------- Batch results ---------- */}
       {Array.isArray(batchResults) && (
-        <div style={styles.resultsSection}>
+        <div className="cholnet-results-section cholnet-batch-results" style={styles.resultsSection}>
           <h2>Batch Results</h2>
           <button style={styles.button} onClick={downloadBatchCsv}>
             Download CSV
           </button>
 
           {ligandMetadata && (
-            <div style={styles.ligandMetadata}>
+            <div className="cholnet-ligand-metadata" style={styles.ligandMetadata}>
               <strong>Docked ligand:</strong>{" "}
               <code style={styles.smilesCode}>{ligandMetadata.smiles}</code>
               {Number.isFinite(Number(ligandMetadata.heavy_atom_count)) && (
@@ -2300,10 +2308,10 @@ export default function CholNet() {
           )}
 
           {predictionScope && (
-            <div style={styles.scopeNote}>{predictionScope}</div>
+            <div className="cholnet-scope-note" style={styles.scopeNote}>{predictionScope}</div>
           )}
 
-          <div style={{ marginTop: 10, fontSize: 13, color: "#555" }}>
+          <div style={{ marginTop: 10, fontSize: 13, color: "#99aaa4" }}>
             CSV contains one row per ligand pose per PDB file, including its Vina
             affinity, rank, and percentile-based label for every model score. Batch
             interpretations count how often residue, atom, and GAT/GCN interaction
@@ -2312,7 +2320,7 @@ export default function CholNet() {
           </div>
 
           {batchInterpretation?.models && (
-            <div style={styles.batchInterpretationGrid}>
+            <div className="cholnet-batch-interpretation-grid" style={styles.batchInterpretationGrid}>
               {modelOrder.map((modelName) => {
                 const summary = batchInterpretation.models[modelName] || {};
                 const residueTypes = summary.top_residue_types || [];
@@ -2324,7 +2332,7 @@ export default function CholNet() {
                   modelName === "GAT" || modelName === "GCN";
 
                 return (
-                  <div key={modelName} style={styles.batchInterpretationCard}>
+                  <div key={modelName} className="cholnet-batch-interpretation-card" style={styles.batchInterpretationCard}>
                     <h3 style={{ margin: 0 }}>{modelName}</h3>
                     <div style={styles.batchMethod}>
                       {summary.method || "Interpretation unavailable"}
@@ -2475,16 +2483,18 @@ const styles = {
     padding: 20,
     lineHeight: 1.7,
     fontSize: 18,
+    color: "#f2fbf7",
+    background: "#07100f",
   },
-  h1: { color: "#333", fontSize: 34, marginBottom: 10 },
+  h1: { color: "#f2fbf7", fontSize: 34, marginBottom: 10 },
   uploadSection: {
-    background: "#f9f9f9",
+    background: "#0e1d1b",
     padding: 22,
     borderRadius: 10,
     marginBottom: 12,
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
   },
-  description: { fontSize: 18, color: "#333", marginBottom: 10 },
+  description: { fontSize: 18, color: "#99aaa4", marginBottom: 10 },
   uploadControls: {
     display: "flex",
     flexDirection: "column",
@@ -2504,13 +2514,13 @@ const styles = {
     display: "inline-block",
     padding: "8px 12px",
     borderRadius: 8,
-    border: "1px solid #ccc",
-    background: "white",
-    color: "#111",
+    border: "1px solid rgba(159,255,207,0.32)",
+    background: "rgba(159,255,207,0.08)",
+    color: "#9fffcf",
     textDecoration: "none",
     fontWeight: 700,
   },
-  exampleHint: { color: "#555", fontSize: 14 },
+  exampleHint: { color: "#99aaa4", fontSize: 14 },
   formRow: {
     display: "flex",
     alignItems: "center",
@@ -2531,15 +2541,17 @@ const styles = {
     width: "100%",
     boxSizing: "border-box",
     padding: "9px 11px",
-    border: "1px solid #bbb",
+    border: "1px solid rgba(159,255,207,0.32)",
     borderRadius: 8,
+    background: "#0a1816",
+    color: "#f2fbf7",
     resize: "vertical",
     fontFamily: "monospace",
     fontSize: 14,
   },
   smilesHint: {
     gridColumn: "2",
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 12,
   },
   smilesCode: {
@@ -2551,24 +2563,25 @@ const styles = {
     boxSizing: "border-box",
     marginTop: 10,
     padding: "10px 12px",
-    border: "1px solid #c7d7ee",
+    border: "1px solid rgba(89,222,211,0.2)",
     borderRadius: 8,
-    background: "#f3f7fd",
-    color: "#34495e",
+    background: "rgba(89,222,211,0.07)",
+    color: "#b9d4ca",
     fontSize: 13,
   },
   ligandMetadata: {
     marginTop: 12,
     padding: "10px 12px",
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 8,
-    background: "white",
+    background: "rgba(7,16,15,0.42)",
+    color: "#99aaa4",
     fontSize: 13,
     overflowWrap: "anywhere",
   },
   error: {
-    color: "red",
-    background: "#ffe6e6",
+    color: "#ffd8d6",
+    background: "rgba(124,30,37,0.34)",
     padding: 10,
     borderRadius: 4,
     marginBottom: 12,
@@ -2579,10 +2592,11 @@ const styles = {
     fontSize: 16,
     fontWeight: 700,
     borderRadius: 8,
-    border: "1px solid #bbb",
-    background: "white",
+    border: "1px solid rgba(159,255,207,0.32)",
+    background: "rgba(89,222,211,0.10)",
+    color: "#f2fbf7",
   },
-  viewerNote: { marginTop: 12, fontSize: 16, color: "#444" },
+  viewerNote: { marginTop: 12, fontSize: 16, color: "#99aaa4" },
   viewerHoverCard: {
     position: "absolute",
     top: 12,
@@ -2592,12 +2606,12 @@ const styles = {
     maxHeight: 420,
     overflow: "hidden",
     padding: "11px 13px",
-    border: "1px solid #d7dce5",
+    border: "1px solid rgba(159,255,207,0.32)",
     borderLeft: "4px solid #64748b",
     borderRadius: 9,
-    background: "rgba(255, 255, 255, 0.97)",
+    background: "rgba(10,24,22,0.96)",
     boxShadow: "0 5px 18px rgba(15, 23, 42, 0.16)",
-    color: "#263241",
+    color: "#f2fbf7",
     fontSize: 13,
     lineHeight: 1.5,
     pointerEvents: "none",
@@ -2613,13 +2627,13 @@ const styles = {
   viewerHoverModel: {
     padding: "1px 7px",
     borderRadius: 999,
-    background: "#eef1f6",
-    color: "#475569",
+    background: "rgba(159,255,207,0.11)",
+    color: "#99aaa4",
     fontSize: 11,
   },
   viewerHoverResidue: {
     marginTop: 5,
-    color: "#1f2937",
+    color: "#f2fbf7",
     fontSize: 14,
     fontWeight: 700,
   },
@@ -2628,13 +2642,13 @@ const styles = {
   },
   viewerHoverDetail: {
     marginTop: 2,
-    color: "#465365",
+    color: "#99aaa4",
     fontSize: 12,
   },
   viewerHoverConnections: {
     marginTop: 8,
     paddingTop: 7,
-    borderTop: "1px solid #e6e8ed",
+    borderTop: "1px solid rgba(211,255,241,0.13)",
   },
   viewerHoverConnectionsTitle: {
     marginBottom: 3,
@@ -2644,7 +2658,7 @@ const styles = {
   },
   viewerHoverConnection: {
     marginTop: 3,
-    color: "#445065",
+    color: "#99aaa4",
     fontSize: 11,
   },
   resultsSection: { marginTop: 20 },
@@ -2664,17 +2678,17 @@ const styles = {
   },
   downloadResultsButton: {
     padding: "8px 13px",
-    border: "1px solid #2563eb",
+    border: "1px solid #59ded3",
     borderRadius: 8,
-    background: "#2563eb",
-    color: "white",
+    background: "rgba(89,222,211,0.12)",
+    color: "#9fffcf",
     cursor: "pointer",
     fontSize: 14,
     fontWeight: 700,
   },
   downloadResultsHint: {
     marginTop: 7,
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 12,
   },
   selectedClrControls: {
@@ -2687,32 +2701,32 @@ const styles = {
   thresholdLegend: {
     marginTop: 12,
     padding: "10px 12px",
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 8,
-    background: "#fafafa",
-    color: "#444",
+    background: "rgba(7,16,15,0.42)",
+    color: "#99aaa4",
     fontSize: 13,
   },
   thresholdTitle: {
     marginBottom: 8,
     fontWeight: 700,
-    color: "#333",
+    color: "#f2fbf7",
   },
   thresholdTable: {
     width: "100%",
     borderCollapse: "collapse",
-    background: "white",
+    background: "#0a1816",
   },
   thresholdTh: {
     padding: "7px 9px",
-    border: "1px solid #ddd",
-    background: "#f3f3f3",
+    border: "1px solid rgba(211,255,241,0.13)",
+    background: "rgba(89,222,211,0.10)",
     textAlign: "left",
     whiteSpace: "nowrap",
   },
   thresholdTd: {
     padding: "7px 9px",
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     whiteSpace: "nowrap",
   },
   selectedBadge: {
@@ -2730,36 +2744,38 @@ const styles = {
     width: "100%",
     borderCollapse: "collapse",
     marginTop: 10,
-    background: "white",
-    border: "1px solid #ddd",
+    background: "#0a1816",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 8,
   },
   th: {
     textAlign: "left",
     padding: "10px 12px",
-    borderBottom: "1px solid #ddd",
-    background: "#f7f7f7",
+    borderBottom: "1px solid rgba(211,255,241,0.13)",
+    background: "rgba(89,222,211,0.10)",
+    color: "#f2fbf7",
     fontWeight: 700,
     whiteSpace: "nowrap",
   },
   td: {
     padding: "10px 12px",
-    borderBottom: "1px solid #eee",
+    borderBottom: "1px solid rgba(211,255,241,0.13)",
+    color: "#99aaa4",
     verticalAlign: "top",
     whiteSpace: "nowrap",
   },
   tdMuted: {
     padding: "10px 12px",
-    borderBottom: "1px solid #eee",
-    color: "#999",
+    borderBottom: "1px solid rgba(211,255,241,0.13)",
+    color: "#71847d",
     whiteSpace: "nowrap",
   },
   interpretationSection: {
     marginTop: 18,
     padding: 16,
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 10,
-    background: "#fafafa",
+    background: "rgba(7,16,15,0.32)",
   },
   interpretationHeader: {
     display: "flex",
@@ -2770,7 +2786,7 @@ const styles = {
   },
   interpretationSubtitle: {
     marginTop: 3,
-    color: "#555",
+    color: "#99aaa4",
     fontSize: 14,
   },
   modelSelector: {
@@ -2783,10 +2799,10 @@ const styles = {
   },
   modelButton: {
     padding: "7px 13px",
-    border: "1px solid #aaa",
+    border: "1px solid rgba(159,255,207,0.32)",
     borderRadius: 999,
-    background: "white",
-    color: "#222",
+    background: "rgba(89,222,211,0.10)",
+    color: "#f2fbf7",
     cursor: "pointer",
     fontSize: 14,
     fontWeight: 700,
@@ -2794,9 +2810,9 @@ const styles = {
     pointerEvents: "auto",
   },
   modelButtonActive: {
-    background: "#111827",
-    borderColor: "#111827",
-    color: "white",
+    background: "#9fffcf",
+    borderColor: "#9fffcf",
+    color: "#07100f",
   },
   modelWarningDot: {
     display: "inline-flex",
@@ -2815,23 +2831,24 @@ const styles = {
   missingInterpretation: {
     marginTop: 14,
     padding: "11px 13px",
-    border: "1px solid #f0c36d",
+    border: "1px solid rgba(255,173,115,0.38)",
     borderRadius: 8,
-    background: "#fff8e5",
-    color: "#6f4b00",
+    background: "rgba(112,65,26,0.24)",
+    color: "#ffd2ad",
     fontSize: 14,
   },
   inlineCode: {
     padding: "1px 4px",
     borderRadius: 4,
-    background: "rgba(255,255,255,0.75)",
+    background: "rgba(159,255,207,0.08)",
+    color: "#9fffcf",
   },
   emptyInterpretation: {
     marginTop: 14,
     padding: 16,
     borderRadius: 8,
-    background: "white",
-    color: "#555",
+    background: "rgba(14,29,27,0.72)",
+    color: "#99aaa4",
     fontSize: 15,
     textAlign: "center",
   },
@@ -2841,7 +2858,7 @@ const styles = {
     gap: 14,
     flexWrap: "wrap",
     marginTop: 14,
-    color: "#444",
+    color: "#99aaa4",
     fontSize: 14,
   },
   viewerLegendItem: {
@@ -2859,10 +2876,10 @@ const styles = {
   interpretationWarning: {
     marginTop: 10,
     padding: "8px 10px",
-    border: "1px solid #f0c36d",
+    border: "1px solid rgba(255,173,115,0.38)",
     borderRadius: 7,
-    background: "#fff8e5",
-    color: "#6f4b00",
+    background: "rgba(112,65,26,0.24)",
+    color: "#ffd2ad",
     fontSize: 13,
   },
   interpretationGrid: {
@@ -2873,13 +2890,13 @@ const styles = {
   },
   importanceCard: {
     padding: 13,
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 9,
-    background: "white",
+    background: "rgba(14,29,27,0.72)",
   },
   importanceTitle: {
     margin: "0 0 10px",
-    color: "#222",
+    color: "#f2fbf7",
   },
   importanceItem: {
     display: "grid",
@@ -2894,13 +2911,13 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    color: "#333",
+    color: "#dff9ee",
   },
   importanceTrack: {
     height: 8,
     overflow: "hidden",
     borderRadius: 999,
-    background: "#e5e7eb",
+    background: "rgba(211,255,241,0.12)",
   },
   importanceFillResidue: {
     height: "100%",
@@ -2918,21 +2935,21 @@ const styles = {
     background: "#7c3aed",
   },
   importanceValue: {
-    color: "#555",
+    color: "#99aaa4",
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
   },
   importanceExplanation: {
     marginTop: 10,
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 12,
   },
   interactionSection: {
     marginTop: 18,
     padding: 14,
-    border: "1px solid #ded5f6",
+    border: "1px solid rgba(183,161,255,0.26)",
     borderRadius: 10,
-    background: "#fcfaff",
+    background: "rgba(73,49,122,0.13)",
   },
   interactionHeader: {
     display: "flex",
@@ -2943,21 +2960,21 @@ const styles = {
   },
   interactionTitle: {
     margin: 0,
-    color: "#4c1d95",
+    color: "#b7a1ff",
     fontSize: 17,
   },
   interactionCount: {
     padding: "2px 9px",
-    border: "1px solid #ddd0fb",
+    border: "1px solid rgba(183,161,255,0.30)",
     borderRadius: 999,
-    background: "white",
-    color: "#6d28d9",
+    background: "rgba(183,161,255,0.10)",
+    color: "#cbbcff",
     fontSize: 12,
     fontWeight: 700,
   },
   interactionExplanation: {
     marginTop: 6,
-    color: "#555",
+    color: "#99aaa4",
     fontSize: 13,
   },
   interactionLayout: {
@@ -2970,9 +2987,9 @@ const styles = {
   interactionNetworkCard: {
     minWidth: 0,
     padding: "3px 0",
-    border: "1px solid #eee9fa",
+    border: "1px solid rgba(183,161,255,0.20)",
     borderRadius: 9,
-    background: "white",
+    background: "rgba(14,29,27,0.72)",
   },
   interactionNetwork: {
     display: "block",
@@ -2987,16 +3004,16 @@ const styles = {
   },
   interactionItem: {
     padding: "9px 11px",
-    border: "1px solid #e9e2f8",
+    border: "1px solid rgba(183,161,255,0.20)",
     borderRadius: 8,
-    background: "white",
+    background: "rgba(14,29,27,0.72)",
   },
   interactionPair: {
     display: "flex",
     alignItems: "center",
     flexWrap: "wrap",
     gap: 6,
-    color: "#374151",
+    color: "#dff9ee",
     fontSize: 14,
   },
   interactionArrow: {
@@ -3004,7 +3021,7 @@ const styles = {
     fontWeight: 700,
   },
   interactionDetails: {
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 12,
   },
   interactionImportanceRow: {
@@ -3019,12 +3036,12 @@ const styles = {
     marginTop: 11,
     padding: "9px 11px",
     borderRadius: 7,
-    background: "white",
-    color: "#666",
+    background: "rgba(14,29,27,0.72)",
+    color: "#99aaa4",
     fontSize: 13,
   },
   emptySmall: {
-    color: "#777",
+    color: "#71847d",
     fontSize: 13,
   },
   batchInterpretationGrid: {
@@ -3035,12 +3052,12 @@ const styles = {
   },
   batchInterpretationCard: {
     padding: 15,
-    border: "1px solid #ddd",
+    border: "1px solid rgba(211,255,241,0.13)",
     borderRadius: 10,
-    background: "white",
+    background: "rgba(14,29,27,0.72)",
   },
   batchMethod: {
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 13,
     marginTop: 2,
   },
@@ -3056,55 +3073,55 @@ const styles = {
   residueChip: {
     display: "inline-block",
     padding: "4px 8px",
-    border: "1px solid #d79520",
+    border: "1px solid rgba(255,173,115,0.42)",
     borderRadius: 999,
-    background: "#fff8e5",
-    color: "#6f4b00",
+    background: "rgba(255,173,115,0.10)",
+    color: "#ffd2ad",
     fontSize: 12,
     fontWeight: 700,
   },
   atomChip: {
     display: "inline-block",
     padding: "4px 8px",
-    border: "1px solid #d66",
+    border: "1px solid rgba(255,143,138,0.40)",
     borderRadius: 999,
-    background: "#fff0f0",
-    color: "#8f1d1d",
+    background: "rgba(255,143,138,0.10)",
+    color: "#ffc3c0",
     fontSize: 12,
     fontWeight: 700,
   },
   interactionChip: {
     display: "inline-block",
     padding: "4px 8px",
-    border: "1px solid #ad8bf0",
+    border: "1px solid rgba(183,161,255,0.40)",
     borderRadius: 999,
-    background: "#f5f0ff",
-    color: "#5b21b6",
+    background: "rgba(183,161,255,0.10)",
+    color: "#d8ccff",
     fontSize: 12,
     fontWeight: 700,
   },
   distanceChip: {
     display: "inline-block",
     padding: "4px 8px",
-    border: "1px solid #94a3b8",
+    border: "1px solid rgba(153,170,164,0.38)",
     borderRadius: 999,
-    background: "#f8fafc",
-    color: "#334155",
+    background: "rgba(153,170,164,0.09)",
+    color: "#c6d4cf",
     fontSize: 12,
     fontWeight: 700,
   },
   batchInteractionNote: {
     marginTop: 11,
-    color: "#666",
+    color: "#99aaa4",
     fontSize: 12,
     lineHeight: 1.5,
   },
 
   publicationSection: {
-  background: "white",
+  background: "#0e1d1b",
   padding: 20,
   marginBottom: 18,
-  border: "1px solid #ddd",
+  border: "1px solid rgba(211,255,241,0.13)",
   borderRadius: 10,
   textAlign: "center",
 },
@@ -3128,7 +3145,7 @@ abstractFigure: {
 publicationText: {
   maxWidth: 900,
   margin: "14px auto 8px",
-  color: "#333",
+  color: "#99aaa4",
   fontSize: 17,
   lineHeight: 1.6,
 },
@@ -3136,7 +3153,7 @@ publicationText: {
 publicationLink: {
   display: "inline-block",
   marginTop: 6,
-  color: "#065fd4",
+  color: "#9fffcf",
   fontSize: 17,
   fontWeight: 700,
   textDecoration: "underline",
